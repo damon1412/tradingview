@@ -180,9 +180,9 @@ export const TradeTrendChart: React.FC<TradeTrendChartProps> = ({
       ctx.stroke();
       ctx.setLineDash([]);
 
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      const hasPinnedPocs = pinnedProfiles.length > 0;
       const tooltipWidth = 140;
-      const tooltipHeight = 70;
+      const tooltipHeight = hasPinnedPocs ? 70 + pinnedProfiles.length * 16 : 70;
       let tooltipX = x + 10;
       let tooltipY = y - 80;
       
@@ -192,6 +192,7 @@ export const TradeTrendChart: React.FC<TradeTrendChartProps> = ({
       if (tooltipY < 0) tooltipY = 10;
       if (tooltipY + tooltipHeight > height) tooltipY = height - tooltipHeight - 10;
 
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
       ctx.fillRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
       ctx.strokeStyle = '#475569';
       ctx.lineWidth = 1;
@@ -203,8 +204,18 @@ export const TradeTrendChart: React.FC<TradeTrendChartProps> = ({
       ctx.fillText(`时间: ${tick.time}`, tooltipX + 8, tooltipY + 18);
       ctx.fillText(`价格: ${tick.price.toFixed(2)}`, tooltipX + 8, tooltipY + 34);
       ctx.fillText(`成交量: ${tick.volume}`, tooltipX + 8, tooltipY + 50);
-      ctx.fillStyle = tick.status === 1 ? '#10b981' : tick.status === 2 ? '#ef4444' : '#94a3b8';
+      const directionColor = tick.status === 1 ? '#10b981' : tick.status === 2 ? '#ef4444' : '#94a3b8';
+      ctx.fillStyle = directionColor;
       ctx.fillText(`方向: ${tick.status === 1 ? '买入' : tick.status === 2 ? '卖出' : '中性'}`, tooltipX + 8, tooltipY + 66);
+
+      if (hasPinnedPocs) {
+        let yOff = 82;
+        pinnedProfiles.forEach((profile, i) => {
+          ctx.fillStyle = profile.color;
+          ctx.fillText(`POC#${i + 1}: ${profile.stats.poc.toFixed(2)}`, tooltipX + 8, tooltipY + yOff);
+          yOff += 16;
+        });
+      }
     }
 
     ctx.fillStyle = '#94a3b8';

@@ -371,7 +371,7 @@ const App: React.FC = () => {
                           style={{ backgroundColor: `${p.color}30`, color: p.color }}
                         >
                           <i className="fas fa-thumbtack text-xs"></i>
-                          #{i + 1} POC:{p.stats.poc.toFixed(0)}
+                          #{i + 1} POC:{p.stats.poc.toFixed(2)}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
