@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useCallback } from 'react';
 import type { StockData, VolumeProfileStats } from '../types/stock';
 import { calculateVolumeProfile, calculateVolumeProfileStats } from '../utils/stockData';
 
@@ -49,6 +49,7 @@ export const VolumeProfile: React.FC<VolumeProfileProps> = ({
 
     profile.forEach((level) => {
       const y = priceToY(level.price);
+      if (y < 0 || y > height) return;
       const barWidth = (level.volume / maxVolume) * (width - 40);
       const intensity = level.volume / maxVolume;
 

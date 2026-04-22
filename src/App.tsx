@@ -76,14 +76,9 @@ const App: React.FC = () => {
         return;
       }
 
-      // 先立即用当前选中周期的数据更新，避免显示固定不变
-      setVolumeProfileData(selectedData);
-
-      // 非1分钟周期，异步加载更精确的1分钟数据
       if (stockCode !== 'DEMO' && timeFrame !== '1m') {
         const startDate = new Date(selectedData[0].timestamp);
         const endDate = new Date(selectedData[selectedData.length - 1].timestamp);
-        // 格式化日期为YYYYMMDD（本地时区，避免UTC时差问题）
         const formatDate = (date: Date) => {
           const year = date.getFullYear();
           const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -97,20 +92,27 @@ const App: React.FC = () => {
           const { data: minuteData, error } = await get1MinuteDataForVolumeProfile(stockCode, startDateStr, endDateStr);
           if (error) {
             console.error('获取1分钟数据失败:', error);
+            setVolumeProfileData(selectedData);
             return;
           }
           if (minuteData.length > 0) {
-            // 过滤1分钟数据，只保留选中区间内的数据
             const filteredMinuteData = minuteData.filter(
               item => item.timestamp >= selectedData[0].timestamp && item.timestamp <= selectedData[selectedData.length - 1].timestamp
             );
-            if (filteredMinuteData.length > 0) {
+            if (filteredMinuteData.length > selectedData.length) {
               setVolumeProfileData(filteredMinuteData);
+            } else {
+              setVolumeProfileData(selectedData);
             }
+          } else {
+            setVolumeProfileData(selectedData);
           }
         } catch (err) {
           console.error('加载1分钟数据失败:', err);
+          setVolumeProfileData(selectedData);
         }
+      } else {
+        setVolumeProfileData(selectedData);
       }
     };
 

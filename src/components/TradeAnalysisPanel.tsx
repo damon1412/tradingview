@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { TradeTrendChart } from './TradeTrendChart';
 import { TradeIndicatorChart } from './TradeIndicatorChart';
-import { getSinaTickData, getQuote } from '../services/stockApi';
-import { convertTradeTickData, calculateTradeIndicators } from '../utils/tradeData';
+import { getSinaTickData, getQuote, getTodayTradeData, getMinuteData, MinuteData } from '../services/stockApi';
+import { convertTradeTickData, calculateTradeIndicators, generateSimulatedTicks } from '../utils/tradeData';
 import type { TradeTick, TradeIndicatorData, PinnedProfile } from '../types/stock';
 
 interface TradeAnalysisPanelProps {
@@ -16,12 +16,14 @@ export const TradeAnalysisPanel: React.FC<TradeAnalysisPanelProps> = ({ stockCod
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdateTime, setLastUpdateTime] = useState<string | null>(null);
+  const [dataSource, setDataSource] = useState<'tick' | 'minute' | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState(0);
 
   const fetchData = async () => {
     setIsLoading(true);
     setError(null);
+    setDataSource(null);
     
     try {
       const { data: quoteData, error: quoteError } = await getQuote(stockCode);
@@ -31,13 +33,44 @@ export const TradeAnalysisPanel: React.FC<TradeAnalysisPanelProps> = ({ stockCod
       }
       const previousClose = quoteData?.Last || 0;
       
-      const { data: tradeData, error: tradeError } = await getSinaTickData(stockCode, 1000);
-      if (tradeError) {
-        setError(`获取逐笔数据失败: ${tradeError.message}`);
-        return;
+      let tradeData = null;
+      let tradeError = null;
+      
+      const { data: tdxData, error: tdxError } = await getTodayTradeData(stockCode);
+      if (tdxData && tdxData.length > 0 && previousClose > 0) {
+        const tdxPriceRaw = tdxData[0].Price;
+        const tdxPriceInCloseUnit = tdxPriceRaw > 1000 ? tdxPriceRaw : tdxPriceRaw * 1000;
+        const priceDiff = Math.abs(tdxPriceInCloseUnit - previousClose) / previousClose;
+        if (priceDiff < 0.1) {
+          tradeData = tdxData;
+          setDataSource('tick');
+        }
       }
+      if (!tradeData) {
+        const { data: sinaData, error: sinaError } = await getSinaTickData(stockCode, 1000);
+        if (sinaData && sinaData.length > 0) {
+          tradeData = sinaData;
+          setDataSource('tick');
+        } else {
+          tradeError = sinaError;
+        }
+      }
+      
+      let ticks: TradeTick[] = [];
       if (tradeData && tradeData.length > 0) {
-        const ticks = convertTradeTickData(tradeData, previousClose);
+        ticks = convertTradeTickData(tradeData, previousClose);
+      } else {
+        const { data: minuteResult } = await getMinuteData(stockCode);
+        if (minuteResult && minuteResult.list.length > 0 && previousClose > 0) {
+          ticks = generateSimulatedTicks(minuteResult.list, previousClose);
+          setDataSource('minute');
+        } else {
+          setError('该标的无逐笔和分时数据');
+          return;
+        }
+      }
+      
+      if (ticks.length > 0) {
         setTradeTicks(ticks);
         
         const indicators = calculateTradeIndicators(ticks);
@@ -45,7 +78,7 @@ export const TradeAnalysisPanel: React.FC<TradeAnalysisPanelProps> = ({ stockCod
         
         setLastUpdateTime(new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
       } else {
-        setError('今日无逐笔数据');
+        setError('今日无数据');
         setTradeTicks([]);
       }
     } catch (err) {
@@ -105,7 +138,7 @@ export const TradeAnalysisPanel: React.FC<TradeAnalysisPanelProps> = ({ stockCod
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
         <h2 className="font-semibold text-slate-200 flex items-center gap-2">
           <i className="fas fa-chart-line text-purple-500"></i>
-          逐笔交易分析
+          {dataSource === 'minute' ? '分时交易分析（模拟逐笔）' : '逐笔交易分析'}
         </h2>
         <div className="flex items-center gap-3">
           {lastUpdateTime && (

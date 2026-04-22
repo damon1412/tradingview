@@ -1,4 +1,5 @@
 import type { StockData } from '../types/stock';
+import { LOCAL_INDEX_LIST } from '../config/indices';
 
 const API_BASE_URL = '';
 
@@ -6,6 +7,8 @@ export interface SearchResult {
   code: string;
   name: string;
 }
+
+export const LOCAL_INDEX_ETF_LIST: SearchResult[] = LOCAL_INDEX_LIST;
 
 export interface KlineData {
   Last: number;
@@ -47,26 +50,25 @@ function handleApiError(error: unknown): ApiError {
 }
 
 export async function searchStocks(keyword: string): Promise<{ data: SearchResult[]; error?: ApiError }> {
+  const kw = keyword.trim();
+  if (!kw) return { data: [] };
+
+  const localResults = LOCAL_INDEX_ETF_LIST.filter(
+    item => item.code.includes(kw) || item.name.includes(kw)
+  );
+
   try {
-    const response = await fetch(`/api/search?keyword=${encodeURIComponent(keyword)}`);
+    const response = await fetch(`/api/search?keyword=${encodeURIComponent(kw)}`);
     if (!response.ok) throw response;
     const result = await response.json();
-    if (result.code === 0) {
-      return { data: result.data };
+    if (result.code === 0 && Array.isArray(result.data)) {
+      return { data: [...localResults, ...result.data] };
     }
-    return {
-      data: [],
-      error: {
-        type: 'business',
-        message: result.message || '搜索失败',
-        code: result.code
-      }
-    };
   } catch (error) {
-    const apiError = handleApiError(error);
-    console.error('搜索股票失败:', apiError);
-    return { data: [], error: apiError };
+    return { data: localResults };
   }
+
+  return { data: localResults };
 }
 
 export interface KlineResponse {
@@ -79,7 +81,10 @@ export async function getKlineData(
   type: string
 ): Promise<{ data: KlineResponse | null; error?: ApiError }> {
   try {
-    const response = await fetch(`/api/kline?code=${code}&type=${type}`);
+    const codeNum = code.replace(/^(sh|sz)/, '');
+    const isIndex = code.startsWith('sh0') || code.startsWith('sz399') || code.startsWith('sh9');
+    const apiType = isIndex ? 'index' : 'kline';
+    const response = await fetch(`/api/${apiType}?code=${code}&type=${type}`);
     if (!response.ok) throw response;
     const result = await response.json();
     if (result.code === 0) {
@@ -150,13 +155,28 @@ export async function get1MinuteDataForVolumeProfile(
   endDate: string
 ): Promise<{ data: StockData[]; error?: ApiError }> {
   try {
-    const response = await fetch(
-      `/api/kline-history?code=${code}&type=minute1&start_date=${startDate}&end_date=${endDate}&limit=800`
-    );
+    const codeNum = code.replace(/^(sh|sz)/, '');
+    const isIndex = code.startsWith('sh0') || code.startsWith('sz399') || code.startsWith('sh9');
+    const apiType = isIndex ? 'index' : 'kline-history';
+    
+    let url;
+    if (isIndex) {
+      url = `/api/${apiType}?code=${code}&type=minute1&start_date=${startDate}&end_date=${endDate}&limit=20000`;
+    } else {
+      url = `/api/${apiType}?code=${code}&type=minute1&start_date=${startDate}&end_date=${endDate}&limit=800`;
+    }
+    
+    const response = await fetch(url);
     if (!response.ok) throw response;
     const result = await response.json();
     if (result.code === 0 && result.data && result.data.List) {
-      return { data: convertKlineToStockData(result.data.List) };
+      let list = result.data.List;
+      // 指数1分钟数据可能不完整，按日期过滤
+      const filteredList = list.filter((item: any) => {
+        const itemDate = item.Time?.substring(0, 10).replace(/-/g, '');
+        return itemDate >= startDate && itemDate <= endDate;
+      });
+      return { data: convertKlineToStockData(filteredList.length > 0 ? filteredList : list) };
     }
     return {
       data: [],
@@ -312,7 +332,18 @@ export async function getTodayTradeData(
     if (!response.ok) throw response;
     const result = await response.json();
     if (result.code === 0 && result.data) {
-      return { data: result.data.List || [] };
+      // TDX Status定义：0=买入, 1=卖出, 2=中性
+      // Sina Status定义：1=买入, 2=卖出, 0=中性
+      // 转换为Sina标准
+      const list = result.data.List || [];
+      const converted = list.map((item: TradeTickData) => {
+        let status = item.Status;
+        if (status === 0) status = 1;
+        else if (status === 1) status = 2;
+        else if (status === 2) status = 0;
+        return { ...item, Status: status };
+      });
+      return { data: converted };
     }
     return {
       data: null,

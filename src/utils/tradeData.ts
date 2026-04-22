@@ -3,23 +3,17 @@ import type { TradeTickData } from '../services/stockApi';
 
 export function convertTradeTickData(rawData: TradeTickData[], previousClose: number): TradeTick[] {
   const result: TradeTick[] = [];
-  let prevPrice = previousClose;
+  let prevPrice = previousClose / 1000;
+  
+  const firstPrice = rawData[0]?.Price || 0;
+  const isPriceInCent = firstPrice > 1000;
   
   for (let i = 0; i < rawData.length; i++) {
     const item = rawData[i];
-    const price = item.Price / 1000;
+    const price = isPriceInCent ? item.Price / 1000 : item.Price;
     const volume = item.Volume;
     const amount = price * volume;
-    let status = item.Status as 0 | 1 | 2;
-    
-    // 当Status=0（中性）时，通过价格变化方向推断买卖方向
-    if (status === 0) {
-      if (price > prevPrice) {
-        status = 1; // 价格上涨，推断为买入
-      } else if (price < prevPrice) {
-        status = 2; // 价格下跌，推断为卖出
-      }
-    }
+    const status = item.Status as 0 | 1 | 2;
     
     const timestamp = parseTradeTimestamp(item.Time);
     const time = formatTradeTime(timestamp);
@@ -164,5 +158,58 @@ export function formatAmount(amount: number): string {
   } else if (amount >= 10000) {
     return (amount / 10000).toFixed(2) + '万';
   }
-  return amount.toFixed(0);
+  return amount.toFixed(2);
+}
+
+export function generateSimulatedTicks(
+  minuteData: { Time: string; Price: number; Number: number }[],
+  previousClose: number
+): TradeTick[] {
+  const ticks: TradeTick[] = [];
+  const prevClose = previousClose / 1000;
+  
+  for (let i = 0; i < minuteData.length; i++) {
+    const item = minuteData[i];
+    const price = item.Price / 1000;
+    const volume = item.Number;
+    
+    if (i === 0) {
+      const timeStr = item.Time;
+      const ts = parseTradeTimestamp(timeStr);
+      const timeFormatted = formatTradeTime(ts);
+      ticks.push({
+        time: timeFormatted,
+        timestamp: ts,
+        price: prevClose,
+        volume: 0,
+        amount: 0,
+        status: 0
+      });
+    }
+    
+    const prevPrice = i === 0 ? prevClose : minuteData[i - 1].Price / 1000;
+    let status: 0 | 1 | 2;
+    if (price > prevPrice) {
+      status = 1;
+    } else if (price < prevPrice) {
+      status = 2;
+    } else {
+      status = 0;
+    }
+    
+    const amount = price * volume;
+    const ts = parseTradeTimestamp(item.Time);
+    const timeFormatted = formatTradeTime(ts);
+    
+    ticks.push({
+      time: timeFormatted,
+      timestamp: ts,
+      price,
+      volume,
+      amount,
+      status
+    });
+  }
+  
+  return ticks;
 }
