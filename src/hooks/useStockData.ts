@@ -67,7 +67,11 @@ export function useStockData(toast: (message: string, type: 'error' | 'warning' 
       }
     } catch (error) {
       console.error('加载股票数据失败:', error);
-      toast('获取股票数据失败', 'error');
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        toast('无法连接到后端服务，请确保Docker和API服务已启动（localhost:8080）', 'error');
+      } else {
+        toast('获取股票数据失败', 'error');
+      }
     } finally {
       setIsLoading(false);
     }

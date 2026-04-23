@@ -40,6 +40,7 @@ export const WatchlistPanel: React.FC<WatchlistPanelProps> = ({
   const [showConfirmClear, setShowConfirmClear] = useState<string | null>(null);
   const [translateY, setTranslateY] = useState(0);
   const [draggedItem, setDraggedItem] = useState<WatchlistItem | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
   const isDragging = useRef(false);
   const startY = useRef(0);
   const currentY = useRef(0);
@@ -51,9 +52,23 @@ export const WatchlistPanel: React.FC<WatchlistPanelProps> = ({
     setDraggedItem(item);
   }, []);
 
-  const handleDragOver = useCallback((e: React.DragEvent, targetItem: WatchlistItem) => {
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    if (!draggedItem || draggedItem.code === targetItem.code) return;
+  }, []);
+
+  const handleDragEnter = useCallback((targetItem: WatchlistItem) => {
+    if (draggedItem && draggedItem.code !== targetItem.code) {
+      setDropTarget(targetItem.code);
+    }
+  }, [draggedItem]);
+
+  const handleDrop = useCallback((targetItem: WatchlistItem) => {
+    e.preventDefault();
+    if (!draggedItem || draggedItem.code === targetItem.code) {
+      setDraggedItem(null);
+      setDropTarget(null);
+      return;
+    }
     
     const draggedIdx = items.findIndex(i => i.code === draggedItem.code);
     const targetIdx = items.findIndex(i => i.code === targetItem.code);
@@ -64,14 +79,17 @@ export const WatchlistPanel: React.FC<WatchlistPanelProps> = ({
       newItems.splice(targetIdx, 0, removed);
       onReorder(newItems);
     }
+    setDraggedItem(null);
+    setDropTarget(null);
   }, [draggedItem, items, onReorder]);
 
   const handleDragEnd = useCallback(() => {
     setDraggedItem(null);
+    setDropTarget(null);
   }, []);
 
   const isIndex = (code: string) => {
-    return code.startsWith('000') || code.startsWith('399') || code.startsWith('899');
+    return /^(000|399|899|930|950|980|985|990|993|995|998|999)/.test(code);
   };
 
   const stocks = items.filter(item => !isIndex(item.code));
@@ -269,12 +287,16 @@ export const WatchlistPanel: React.FC<WatchlistPanelProps> = ({
                       transition={{ duration: 0.2 }}
                       draggable
                       onDragStart={() => handleDragStart(item)}
-                      onDragOver={(e) => handleDragOver(e, item)}
+                      onDragOver={handleDragOver}
+                      onDragEnter={() => handleDragEnter(item)}
+                      onDrop={() => handleDrop(item)}
                       onDragEnd={handleDragEnd}
                       onClick={() => onSelect(item.code, item.name)}
                       className={`px-4 py-3 flex items-center justify-between cursor-pointer transition-all group ${
                         item.code === currentCode
                           ? 'bg-blue-600/20 border-l-2 border-blue-500'
+                          : dropTarget === item.code
+                          ? 'bg-blue-600/10 border-l-2 border-blue-400 border-dashed'
                           : 'hover:bg-slate-700/50 border-l-2 border-transparent'
                       }`}
                     >
@@ -334,12 +356,16 @@ export const WatchlistPanel: React.FC<WatchlistPanelProps> = ({
                       transition={{ duration: 0.2 }}
                       draggable
                       onDragStart={() => handleDragStart(item)}
-                      onDragOver={(e) => handleDragOver(e, item)}
+                      onDragOver={handleDragOver}
+                      onDragEnter={() => handleDragEnter(item)}
+                      onDrop={() => handleDrop(item)}
                       onDragEnd={handleDragEnd}
                       onClick={() => onSelect(item.code, item.name)}
                       className={`px-4 py-3 flex items-center justify-between cursor-pointer transition-all group ${
                         item.code === currentCode
                           ? 'bg-blue-600/20 border-l-2 border-blue-500'
+                          : dropTarget === item.code
+                          ? 'bg-blue-600/10 border-l-2 border-blue-400 border-dashed'
                           : 'hover:bg-slate-700/50 border-l-2 border-transparent'
                       }`}
                     >

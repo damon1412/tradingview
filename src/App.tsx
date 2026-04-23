@@ -21,7 +21,7 @@ const PROFILE_WIDTH = 120;
 
 const App: React.FC = () => {
   const { showToast, toasts, dismissToast } = useToast();
-  const { data, displayData, stockCode, setStockCode, stockName, setStockName, isLoading, setIsLoading, zoomRange, setZoomRange, loadStockData: loadStockDataRaw } = useStockData(showToast);
+  const { data, displayData, stockCode, setStockCode, stockName, setStockName, isLoading, zoomRange, setZoomRange, loadStockData: loadStockDataRaw } = useStockData(showToast);
   const { searchInput, searchResults, showSearchResults, showPopularIndices, handleSearchFocus, handleSearchInputChange, handleSelectStock: handleSelectStockRaw, handleKeyDown, popularIndices } = useSearch();
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('1d');
   const [dataRange, setDataRange] = useState<string>('1y');
