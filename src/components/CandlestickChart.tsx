@@ -9,6 +9,8 @@ interface CandlestickChartProps {
   onRangeSelect: (range: SelectedRange | null) => void;
   onZoom: (range: { startIndex: number; endIndex: number } | null) => void;
   pinnedProfiles?: PinnedProfile[];
+  onHoverIndexChange?: (index: number | null) => void;
+  hoverIndex?: number | null;
 }
 
 export const CandlestickChart: React.FC<CandlestickChartProps> = ({
@@ -18,14 +20,17 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
   selectedRange,
   onRangeSelect,
   onZoom,
-  pinnedProfiles = []
+  pinnedProfiles = [],
+  onHoverIndexChange,
+  hoverIndex: externalHoverIndex
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isSelecting, setIsSelecting] = useState(false);
   const [isZooming, setIsZooming] = useState(false);
   const [selectionStart, setSelectionStart] = useState<number | null>(null);
   const [zoomStart, setZoomStart] = useState<number | null>(null);
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [internalHoverIndex, setInternalHoverIndex] = useState<number | null>(null);
+  const hoverIndex = externalHoverIndex !== undefined ? externalHoverIndex : internalHoverIndex;
 
   const margin = { top: 20, right: 60, bottom: 40, left: 10 };
   const chartWidth = width - margin.left - margin.right;
@@ -276,7 +281,8 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         setIsSelecting(true);
         setSelectionStart(index);
       }
-      setHoverIndex(index);
+      setInternalHoverIndex(index);
+      onHoverIndexChange?.(index);
     }
   };
 
@@ -286,7 +292,8 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const index = xToIndex(x);
 
     if (index >= 0 && index < data.length) {
-      setHoverIndex(index);
+      setInternalHoverIndex(index);
+      onHoverIndexChange?.(index);
     }
   };
 
@@ -315,7 +322,8 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
   };
 
   const handleMouseLeave = () => {
-    setHoverIndex(null);
+    setInternalHoverIndex(null);
+    onHoverIndexChange?.(null);
     if (isSelecting) {
       setIsSelecting(false);
       setSelectionStart(null);

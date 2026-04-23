@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import type { StockData, SelectedRange } from '../types/stock';
 import { calculateRSI, calculateMACD } from '../utils/indicators';
 
@@ -8,6 +8,8 @@ interface IndicatorChartProps {
   height: number;
   selectedRange: SelectedRange | null;
   indicator: 'volume' | 'macd' | 'rsi';
+  onHoverIndexChange?: (index: number | null) => void;
+  hoverIndex?: number | null;
 }
 
 export const IndicatorChart: React.FC<IndicatorChartProps> = ({
@@ -15,9 +17,13 @@ export const IndicatorChart: React.FC<IndicatorChartProps> = ({
   width,
   height,
   selectedRange,
-  indicator
+  indicator,
+  onHoverIndexChange,
+  hoverIndex: externalHoverIndex
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [internalHoverIndex, setInternalHoverIndex] = useState<number | null>(null);
+  const hoverIndex = externalHoverIndex !== undefined ? externalHoverIndex : internalHoverIndex;
 
   const margin = { top: 10, right: 60, bottom: 30, left: 10 };
   const chartWidth = width - margin.left - margin.right;
