@@ -19,7 +19,7 @@ const PROFILE_WIDTH = 120;
 const App: React.FC = () => {
   const { showToast, toasts, dismissToast } = useToast();
   const { data, displayData, stockCode, setStockCode, stockName, setStockName, isLoading, setIsLoading, zoomRange, setZoomRange, loadStockData: loadStockDataRaw } = useStockData(showToast);
-  const { searchInput, searchResults, showSearchResults, handleSearchInputChange, handleSelectStock: handleSelectStockRaw, handleKeyDown } = useSearch();
+  const { searchInput, searchResults, showSearchResults, showPopularIndices, handleSearchFocus, handleSearchInputChange, handleSelectStock: handleSelectStockRaw, handleKeyDown, popularIndices } = useSearch();
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('1d');
   const [dataRange, setDataRange] = useState<string>('1y');
   const [selectedIndicator, setSelectedIndicator] = useState<'volume' | 'macd' | 'rsi'>('volume');
@@ -143,15 +143,31 @@ const App: React.FC = () => {
                     type="text"
                     value={searchInput}
                     onChange={(e) => handleSearchInputChange(e.target.value)}
+                    onFocus={handleSearchFocus}
                     onKeyDown={(e) => handleKeyDown(e, (code, name) => handleSelectStockRaw(code, name, handleSelectStock))}
                     placeholder="输入股票代码或名称"
                     className="bg-transparent text-sm text-white placeholder-slate-400 outline-none w-32"
                   />
                   {isLoading && <i className="fas fa-spinner fa-spin text-slate-400 text-xs"></i>}
                 </div>
-                {showSearchResults && (
+                {(showSearchResults || showPopularIndices) && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
-                    {searchResults.map((result) => (
+                    {showPopularIndices && (
+                      <div className="p-2 border-b border-slate-700">
+                        <div className="text-xs text-slate-500 px-1 mb-1">主要指数</div>
+                        {popularIndices.map((item) => (
+                          <button
+                            key={item.code}
+                            onClick={() => handleSelectStockRaw(item.code, item.name, handleSelectStock)}
+                            className="w-full px-2 py-1.5 text-left text-sm text-slate-200 hover:bg-slate-700 transition-colors flex items-center justify-between rounded"
+                          >
+                            <span className="font-mono text-blue-400">{item.code}</span>
+                            <span className="text-slate-300">{item.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {showSearchResults && searchResults.map((result) => (
                       <button
                         key={result.code}
                         onClick={() => handleSelectStockRaw(result.code, result.name, handleSelectStock)}
