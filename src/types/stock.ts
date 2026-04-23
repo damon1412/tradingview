@@ -33,6 +33,19 @@ export interface PinnedProfile {
   color: string;
 }
 
+export interface WatchlistItem {
+  code: string;
+  name: string;
+  addedAt: number;
+  group?: string;
+}
+
+export interface WatchlistGroup {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export interface TradeTick {
   time: string;
   timestamp: number;

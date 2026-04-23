@@ -6,11 +6,15 @@ import { StatsPanel } from './components/StatsPanel';
 import { TimeFrameSelector } from './components/TimeFrameSelector';
 import { TradeAnalysisPanel } from './components/TradeAnalysisPanel';
 import { Toast, useToast } from './components/Toast';
+import { WatchlistPanel } from './components/WatchlistPanel';
+import { AddWatchlistModal } from './components/AddWatchlistModal';
+import { GroupManagerModal } from './components/GroupManagerModal';
+import { FinancePanel } from './components/FinancePanel';
 import { useStockData } from './hooks/useStockData';
 import { useSearch } from './hooks/useSearch';
 import { useVolumeProfile } from './hooks/useVolumeProfile';
 import { getTimeFrameLabel } from './utils/stockData';
-import type { SelectedRange, VolumeProfileStats, TimeFrame, PinnedProfile } from './types/stock';
+import type { SelectedRange, VolumeProfileStats, TimeFrame, PinnedProfile, WatchlistItem, WatchlistGroup } from './types/stock';
 
 const CHART_HEIGHT = 360;
 const VOLUME_HEIGHT = 100;
@@ -27,6 +31,33 @@ const App: React.FC = () => {
   const [pinnedProfiles, setPinnedProfiles] = useState<PinnedProfile[]>([]);
   const [containerWidth, setContainerWidth] = useState(0);
   const [priceLevels, setPriceLevels] = useState(100);
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('watchlist');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [showAddWatchlistModal, setShowAddWatchlistModal] = useState(false);
+  const [watchlistGroups, setWatchlistGroups] = useState<WatchlistGroup[]>(() => {
+    try {
+      const saved = localStorage.getItem('watchlistGroups');
+      return saved ? JSON.parse(saved) : [
+        { id: 'default', name: '默认', color: '#3b82f6' }
+      ];
+    } catch {
+      return [{ id: 'default', name: '默认', color: '#3b82f6' }];
+    }
+  });
+  const [activeGroup, setActiveGroup] = useState<string>(() => {
+    try {
+      return localStorage.getItem('activeWatchlistGroup') || 'default';
+    } catch {
+      return 'default';
+    }
+  });
+  const [showGroupManager, setShowGroupManager] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -117,6 +148,65 @@ const App: React.FC = () => {
     setPinnedProfiles([]);
     setPriceLevels(100);
   };
+
+  const handleAddToWatchlist = (code: string, name: string, groupName?: string) => {
+    const targetGroup = groupName || activeGroup;
+    if (!watchlist.find(item => item.code === code && item.group === targetGroup)) {
+      const newItem: WatchlistItem = { code, name, addedAt: Date.now(), group: targetGroup };
+      setWatchlist((prev: WatchlistItem[]) => {
+        const updated = [...prev, newItem];
+        localStorage.setItem('watchlist', JSON.stringify(updated));
+        return updated;
+      });
+      setShowAddWatchlistModal(false);
+    }
+  };
+
+  const handleRemoveFromWatchlist = (code: string) => {
+    setWatchlist((prev: WatchlistItem[]) => {
+      const updated = prev.filter(item => !(item.code === code && item.group === activeGroup));
+      localStorage.setItem('watchlist', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleAddGroup = (name: string, color: string) => {
+    const newGroup: WatchlistGroup = {
+      id: `group_${Date.now()}`,
+      name,
+      color
+    };
+    setWatchlistGroups(prev => {
+      const updated = [...prev, newGroup];
+      localStorage.setItem('watchlistGroups', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleRemoveGroup = (groupId: string) => {
+    if (groupId === 'default') return;
+    setWatchlistGroups(prev => {
+      const updated = prev.filter(g => g.id !== groupId);
+      localStorage.setItem('watchlistGroups', JSON.stringify(updated));
+      return updated;
+    });
+    setWatchlist(prev => {
+      const updated = prev.filter(item => item.group !== groupId);
+      localStorage.setItem('watchlist', JSON.stringify(updated));
+      return updated;
+    });
+    if (activeGroup === groupId) {
+      setActiveGroup('default');
+      localStorage.setItem('activeWatchlistGroup', 'default');
+    }
+  };
+
+  const handleSwitchGroup = (groupId: string) => {
+    setActiveGroup(groupId);
+    localStorage.setItem('activeWatchlistGroup', groupId);
+  };
+
+  const filteredWatchlist = watchlist.filter(item => item.group === activeGroup);
 
   const chartWidth = Math.max(0, containerWidth - PROFILE_WIDTH - 32);
 
@@ -213,12 +303,33 @@ const App: React.FC = () => {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 gap-6 mb-6">
+        <WatchlistPanel
+          items={filteredWatchlist}
+          currentCode={stockCode}
+          currentName={stockName}
+          groups={watchlistGroups}
+          activeGroup={activeGroup}
+          onAdd={() => setShowAddWatchlistModal(true)}
+          onAddCurrent={() => handleAddToWatchlist(stockCode, stockName)}
+          onSelect={handleSelectStock}
+          onRemove={handleRemoveFromWatchlist}
+          onClose={() => {}}
+          onSwitchGroup={handleSwitchGroup}
+          onManageGroups={() => setShowGroupManager(true)}
+          isMobile={false}
+          visible={true}
+        />
+
+        <div className="mt-4">
+          <FinancePanel stockCode={stockCode} />
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 mb-6 mt-4">
           <TradeAnalysisPanel stockCode={stockCode} pinnedProfiles={pinnedProfiles} />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-4">
+        <div className="grid gap-6">
+          <div className="space-y-4">
             <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
                 <div className="flex items-center gap-4">
@@ -394,49 +505,69 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="lg:col-span-1">
+          <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-700">
+              <h3 className="font-semibold text-slate-200 text-sm">数据统计</h3>
+            </div>
             <StatsPanel
               data={data}
               stats={stats}
               selectedRange={selectedRange}
             />
+          </div>
 
-            <div className="mt-4 bg-slate-800 rounded-lg p-4 border border-slate-700">
-              <h3 className="text-slate-200 font-semibold text-sm mb-3">使用说明</h3>
-              <ul className="space-y-2 text-xs text-slate-400">
-                <li className="flex items-start gap-2">
-                  <i className="fas fa-clock text-blue-400 mt-0.5"></i>
-                  <span>顶部切换时间周期（1分钟到周线）</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <i className="fas fa-hand-pointer text-blue-400 mt-0.5"></i>
-                  <span>在K线图上拖拽鼠标框选时间区间</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <i className="fas fa-chart-bar text-blue-400 mt-0.5"></i>
-                  <span>右侧显示选中区间的筹码分布</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <i className="fas fa-thumbtack text-amber-400 mt-0.5"></i>
-                  <span>点击"固定筹码分布"可锁定当前分布，可固定多个区间进行对比</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <i className="fas fa-bullseye text-amber-400 mt-0.5"></i>
-                  <span><strong>POC</strong>: 成交量最大的价位</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <i className="fas fa-arrows-alt-v text-emerald-400 mt-0.5"></i>
-                  <span><strong>VAH/VAL</strong>: 70%成交量分布的价值区上下边界</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <i className="fas fa-undo text-slate-400 mt-0.5"></i>
-                  <span>双击图表或点击"清除选择"重置</span>
-                </li>
-              </ul>
-            </div>
+          <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+            <h3 className="text-slate-200 font-semibold text-sm mb-3">使用说明</h3>
+            <ul className="space-y-2 text-xs text-slate-400">
+              <li className="flex items-start gap-2">
+                <i className="fas fa-clock text-blue-400 mt-0.5"></i>
+                <span>顶部切换时间周期（1分钟到周线）</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <i className="fas fa-hand-pointer text-blue-400 mt-0.5"></i>
+                <span>在K线图上拖拽鼠标框选时间区间</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <i className="fas fa-chart-bar text-blue-400 mt-0.5"></i>
+                <span>右侧显示选中区间的筹码分布</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <i className="fas fa-thumbtack text-amber-400 mt-0.5"></i>
+                <span>点击"固定筹码分布"可锁定当前分布，可固定多个区间进行对比</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <i className="fas fa-bullseye text-amber-400 mt-0.5"></i>
+                <span><strong>POC</strong>: 成交量最大的价位</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <i className="fas fa-arrows-alt-v text-emerald-400 mt-0.5"></i>
+                <span><strong>VAH/VAL</strong>: 70%成交量分布的价值区上下边界</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <i className="fas fa-undo text-slate-400 mt-0.5"></i>
+                <span>双击图表或点击"清除选择"重置</span>
+              </li>
+            </ul>
           </div>
         </div>
       </main>
+
+      {showAddWatchlistModal && (
+        <AddWatchlistModal
+          existingCodes={filteredWatchlist.map(item => item.code)}
+          onAdd={handleAddToWatchlist}
+          onClose={() => setShowAddWatchlistModal(false)}
+        />
+      )}
+
+      {showGroupManager && (
+        <GroupManagerModal
+          groups={watchlistGroups}
+          onAdd={handleAddGroup}
+          onRemove={handleRemoveGroup}
+          onClose={() => setShowGroupManager(false)}
+        />
+      )}
     </div>
   );
 };
