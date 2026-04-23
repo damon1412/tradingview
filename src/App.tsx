@@ -26,7 +26,7 @@ const App: React.FC = () => {
   const [selectedRange, setSelectedRange] = useState<SelectedRange | null>(null);
   const [pinnedProfiles, setPinnedProfiles] = useState<PinnedProfile[]>([]);
   const [containerWidth, setContainerWidth] = useState(0);
-  const [priceLevels, setPriceLevels] = useState(40);
+  const [priceLevels, setPriceLevels] = useState(100);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,7 +48,7 @@ const App: React.FC = () => {
     loadStockData(stockCode, timeFrame);
     setSelectedRange(null);
     setZoomRange(null);
-    setPriceLevels(40);
+    setPriceLevels(100);
   }, [timeFrame, stockCode, dataRange]);
 
   const selectedData = useMemo(() => {
@@ -115,7 +115,7 @@ const App: React.FC = () => {
     setStockName(name);
     setSelectedRange(null);
     setPinnedProfiles([]);
-    setPriceLevels(40);
+    setPriceLevels(100);
   };
 
   const chartWidth = Math.max(0, containerWidth - PROFILE_WIDTH - 32);
