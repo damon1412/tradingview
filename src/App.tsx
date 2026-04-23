@@ -207,6 +207,14 @@ const App: React.FC = () => {
 
   const filteredWatchlist = watchlist.filter(item => item.group === activeGroup);
 
+  useEffect(() => {
+    if (filteredWatchlist.length > 0 && stockCode === '000001') {
+      const firstItem = filteredWatchlist[0];
+      setStockCode(firstItem.code);
+      setStockName(firstItem.name);
+    }
+  }, [filteredWatchlist, stockCode, setStockCode, setStockName]);
+
   const chartWidth = Math.max(0, containerWidth - PROFILE_WIDTH - 32);
 
   return (
