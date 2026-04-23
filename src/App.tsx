@@ -22,7 +22,7 @@ const PROFILE_WIDTH = 120;
 const App: React.FC = () => {
   const { showToast, toasts, dismissToast } = useToast();
   const { data, displayData, stockCode, setStockCode, stockName, setStockName, isLoading, zoomRange, setZoomRange, loadStockData: loadStockDataRaw } = useStockData(showToast);
-  const { searchInput, searchResults, showSearchResults, showPopularIndices, handleSearchFocus, handleSearchInputChange, handleSelectStock: handleSelectStockRaw, handleKeyDown, popularIndices } = useSearch();
+  const { searchInput, searchResults, showSearchResults, showPopularIndices, handleSearchFocus, handleSearchInputChange, handleSelectStock: handleSelectStockRaw, handleKeyDown, closeSearchDropdown, popularIndices } = useSearch();
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('1d');
   const [dataRange, setDataRange] = useState<string>('1y');
   const [selectedIndicator, setSelectedIndicator] = useState<'volume' | 'macd' | 'rsi'>('volume');
@@ -215,6 +215,20 @@ const App: React.FC = () => {
   const filteredWatchlist = watchlist.filter(item => item.group === activeGroup);
 
   useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.search-container')) {
+        closeSearchDropdown();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [closeSearchDropdown]);
+
+  useEffect(() => {
     if (filteredWatchlist.length > 0 && stockCode === '000001') {
       const firstItem = filteredWatchlist[0];
       setStockCode(firstItem.code);
@@ -240,7 +254,7 @@ const App: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <div className="relative">
+              <div className="relative search-container">
                 <div className="flex items-center gap-2 bg-slate-700/50 rounded-lg px-3 py-1.5">
                   <i className="fas fa-search text-slate-400 text-sm"></i>
                   <input

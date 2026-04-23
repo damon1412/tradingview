@@ -58,6 +58,12 @@ export function useSearch() {
     }
   }, [searchResults, handleSelectStock]);
 
+  const closeSearchDropdown = useCallback(() => {
+    setShowSearchResults(false);
+    setShowPopularIndices(false);
+    setSearchResults([]);
+  }, []);
+
   return {
     searchInput,
     setSearchInput,
@@ -70,6 +76,7 @@ export function useSearch() {
     handleSearchInputChange,
     handleSelectStock,
     handleKeyDown,
+    closeSearchDropdown,
     popularIndices: POPULAR_INDICES
   };
 }
