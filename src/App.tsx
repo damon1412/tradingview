@@ -19,7 +19,12 @@ const CHART_HEIGHT = 360;
 const VOLUME_HEIGHT = 100;
 const PROFILE_WIDTH = 120;
 
-const App: React.FC = () => {
+interface AppProps {
+  initialStockCode?: string;
+  initialStockName?: string;
+}
+
+const App: React.FC<AppProps> = ({ initialStockCode, initialStockName }) => {
   const { showToast, toasts, dismissToast } = useToast();
   const { data, displayData, stockCode, setStockCode, stockName, setStockName, isLoading, zoomRange, setZoomRange, loadStockData: loadStockDataRaw } = useStockData(showToast);
   const { searchInput, searchResults, showSearchResults, showPopularIndices, handleSearchFocus, handleSearchInputChange, handleSelectStock: handleSelectStockRaw, handleKeyDown, closeSearchDropdown, popularIndices } = useSearch();
@@ -75,11 +80,35 @@ const App: React.FC = () => {
   }, [loadStockDataRaw, dataRange]);
 
   useEffect(() => {
-    loadStockData(stockCode, timeFrame);
-    setSelectedRange(null);
-    setZoomRange(null);
-    setPriceLevels(100);
-  }, [timeFrame, stockCode, dataRange]);
+    if (initialStockCode && initialStockName) {
+      setStockCode(initialStockCode);
+      setStockName(initialStockName);
+      loadStockData(initialStockCode, timeFrame);
+      setSelectedRange(null);
+      setZoomRange(null);
+      setPriceLevels(100);
+    }
+  }, [initialStockCode, initialStockName]);
+
+  useEffect(() => {
+    if (!initialStockCode) {
+      let targetCode = stockCode;
+      if (stockCode === '000001' && filteredWatchlist.length > 0) {
+        targetCode = filteredWatchlist[0].code;
+        setStockCode(filteredWatchlist[0].code);
+        setStockName(filteredWatchlist[0].name);
+      }
+      loadStockData(targetCode, timeFrame);
+    }
+  }, [timeFrame]);
+
+  useEffect(() => {
+    if (!initialStockCode) {
+      setSelectedRange(null);
+      setZoomRange(null);
+      setPriceLevels(100);
+    }
+  }, [stockCode]);
 
   const selectedData = useMemo(() => {
     if (!selectedRange) return displayData;
@@ -229,14 +258,6 @@ const App: React.FC = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [closeSearchDropdown]);
-
-  useEffect(() => {
-    if (filteredWatchlist.length > 0 && stockCode === '000001') {
-      const firstItem = filteredWatchlist[0];
-      setStockCode(firstItem.code);
-      setStockName(firstItem.name);
-    }
-  }, []);
 
   const chartWidth = Math.max(0, containerWidth - PROFILE_WIDTH - 32);
 
