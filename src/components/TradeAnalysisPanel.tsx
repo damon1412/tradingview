@@ -93,7 +93,7 @@ export const TradeAnalysisPanel: React.FC<TradeAnalysisPanelProps> = ({ stockCod
   useEffect(() => {
     if (!stockCode) return;
     fetchData();
-  }, [stockCode]);
+  }, [stockCode, fetchData]);
 
   const handleRefresh = () => {
     fetchData();
