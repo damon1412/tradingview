@@ -9,7 +9,6 @@ import { Toast, useToast } from './components/Toast';
 import { WatchlistPanel } from './components/WatchlistPanel';
 import { AddWatchlistModal } from './components/AddWatchlistModal';
 import { GroupManagerModal } from './components/GroupManagerModal';
-import { FinancePanel } from './components/FinancePanel';
 import { useStockData } from './hooks/useStockData';
 import { useSearch } from './hooks/useSearch';
 import { useVolumeProfile } from './hooks/useVolumeProfile';
@@ -319,10 +318,6 @@ const App: React.FC = () => {
           isMobile={false}
           visible={true}
         />
-
-        <div className="mt-4">
-          <FinancePanel stockCode={stockCode} />
-        </div>
 
         <div className="grid grid-cols-1 gap-6 mb-6 mt-4">
           <TradeAnalysisPanel stockCode={stockCode} pinnedProfiles={pinnedProfiles} />
