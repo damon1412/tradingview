@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { StockData, TimeFrame } from '../types/stock';
 import { getQuote, getMinuteData, getStockDataWithFallback, convertMinuteToStockData } from '../services/stockApi';
 
@@ -8,6 +8,7 @@ export function useStockData(toast: (message: string, type: 'error' | 'warning' 
   const [stockName, setStockName] = useState('平安银行');
   const [isLoading, setIsLoading] = useState(false);
   const [zoomRange, setZoomRange] = useState<{startIndex: number; endIndex: number} | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const displayData = stockCode === 'DEMO' ? data : (() => {
     if (!zoomRange) return data;
@@ -15,10 +16,17 @@ export function useStockData(toast: (message: string, type: 'error' | 'warning' 
   })();
 
   const loadStockData = useCallback(async (code: string, tf: TimeFrame, dataRange: string = '1y') => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortRef.current = controller;
+    
     setIsLoading(true);
     try {
       if (tf === 'minute') {
         const { data: quoteData, error: quoteError } = await getQuote(code);
+        if (controller.signal.aborted) return;
         if (quoteError) {
           toast(`获取行情数据失败: ${quoteError.message}`, 'error');
           return;
@@ -26,6 +34,7 @@ export function useStockData(toast: (message: string, type: 'error' | 'warning' 
         const previousClose = quoteData?.Last || 0;
         
         const { data: minuteData, error: minuteError } = await getMinuteData(code);
+        if (controller.signal.aborted) return;
         if (minuteError) {
           toast(`获取分时数据失败: ${minuteError.message}`, 'error');
           return;
@@ -40,6 +49,7 @@ export function useStockData(toast: (message: string, type: 'error' | 'warning' 
       }
 
       const { data: stockData, error } = await getStockDataWithFallback(code, tf);
+      if (controller.signal.aborted) return;
       if (error) {
         toast(`获取股票数据失败: ${error.message}`, 'error');
         return;
@@ -61,11 +71,14 @@ export function useStockData(toast: (message: string, type: 'error' | 'warning' 
           const cutoffTime = now - rangeMs;
           filteredData = stockData.filter(item => item.timestamp >= cutoffTime);
         }
-        setData(filteredData);
+        if (!controller.signal.aborted) {
+          setData(filteredData);
+        }
       } else {
         toast('未找到该股票数据，请检查股票代码', 'warning');
       }
     } catch (error) {
+      if (controller.signal.aborted) return;
       console.error('加载股票数据失败:', error);
       if (error instanceof TypeError && error.message.includes('fetch')) {
         toast('无法连接到后端服务，请确保Docker和API服务已启动（localhost:8080）', 'error');
@@ -73,7 +86,9 @@ export function useStockData(toast: (message: string, type: 'error' | 'warning' 
         toast('获取股票数据失败', 'error');
       }
     } finally {
-      setIsLoading(false);
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+      }
     }
   }, [toast]);
 

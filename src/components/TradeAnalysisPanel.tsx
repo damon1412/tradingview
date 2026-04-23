@@ -21,13 +21,14 @@ export const TradeAnalysisPanel: React.FC<TradeAnalysisPanelProps> = ({ stockCod
   const [chartWidth, setChartWidth] = useState(0);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
-  const fetchData = useCallback(async (code: string) => {
+  const fetchData = useCallback(async (code: string, signal?: AbortSignal) => {
     setIsLoading(true);
     setError(null);
     setDataSource(null);
     
     try {
       const { data: quoteData, error: quoteError } = await getQuote(code);
+      if (signal?.aborted) return;
       if (quoteError) {
         setError('获取行情数据失败');
         return;
@@ -38,6 +39,7 @@ export const TradeAnalysisPanel: React.FC<TradeAnalysisPanelProps> = ({ stockCod
       let tradeError = null;
       
       const { data: tdxData, error: tdxError } = await getTodayTradeData(code);
+      if (signal?.aborted) return;
       if (tdxData && tdxData.length > 0 && previousClose > 0) {
         const tdxPriceRaw = tdxData[0].Price;
         const tdxPriceInCloseUnit = tdxPriceRaw > 1000 ? tdxPriceRaw : tdxPriceRaw * 1000;
@@ -47,8 +49,10 @@ export const TradeAnalysisPanel: React.FC<TradeAnalysisPanelProps> = ({ stockCod
           setDataSource('tick');
         }
       }
+      if (signal?.aborted) return;
       if (!tradeData) {
         const { data: sinaData, error: sinaError } = await getSinaTickData(code, 1000);
+        if (signal?.aborted) return;
         if (sinaData && sinaData.length > 0) {
           tradeData = sinaData;
           setDataSource('tick');
@@ -62,6 +66,7 @@ export const TradeAnalysisPanel: React.FC<TradeAnalysisPanelProps> = ({ stockCod
         ticks = convertTradeTickData(tradeData, previousClose);
       } else {
         const { data: minuteResult } = await getMinuteData(code);
+        if (signal?.aborted) return;
         if (minuteResult && minuteResult.list.length > 0 && previousClose > 0) {
           ticks = generateSimulatedTicks(minuteResult.list, previousClose);
           setDataSource('minute');
@@ -71,6 +76,7 @@ export const TradeAnalysisPanel: React.FC<TradeAnalysisPanelProps> = ({ stockCod
         }
       }
       
+      if (signal?.aborted) return;
       if (ticks.length > 0) {
         setTradeTicks(ticks);
         
@@ -83,16 +89,25 @@ export const TradeAnalysisPanel: React.FC<TradeAnalysisPanelProps> = ({ stockCod
         setTradeTicks([]);
       }
     } catch (err) {
+      if (signal?.aborted) return;
       setError('加载数据失败');
       console.error('加载逐笔数据失败:', err);
     } finally {
-      setIsLoading(false);
+      if (!signal?.aborted) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     if (!stockCode) return;
-    fetchData(stockCode);
+    
+    const controller = new AbortController();
+    fetchData(stockCode, controller.signal);
+    
+    return () => {
+      controller.abort();
+    };
   }, [stockCode, fetchData]);
 
   const handleRefresh = () => {

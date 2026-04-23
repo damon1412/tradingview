@@ -235,7 +235,6 @@ const App: React.FC = () => {
       const firstItem = filteredWatchlist[0];
       setStockCode(firstItem.code);
       setStockName(firstItem.name);
-      loadStockData(firstItem.code, timeFrame, dataRange);
     }
   }, []);
 
