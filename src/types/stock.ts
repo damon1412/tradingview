@@ -47,8 +47,10 @@ export interface TradeIndicatorData {
   timestamps: number[];
   cumulativeBuy: number[];
   cumulativeSell: number[];
-  buyAcceleration: number[];
-  sellAcceleration: number[];
+  macdDIF: number[];
+  macdDEA: number[];
+  macdHistogram: number[];
+  rsi: number[];
 }
 
 export interface CapitalFlowStats {

@@ -38,15 +38,11 @@ export function calculateTradeIndicators(tradeTicks: TradeTick[]): TradeIndicato
   const timestamps: number[] = [];
   const cumulativeBuy: number[] = [];
   const cumulativeSell: number[] = [];
-  const buyAcceleration: number[] = [];
-  const sellAcceleration: number[] = [];
   
   let cumBuy = 0;
   let cumSell = 0;
-  let prevCumBuy = 0;
-  let prevCumSell = 0;
   
-  tradeTicks.forEach((tick, index) => {
+  tradeTicks.forEach((tick) => {
     prices.push(tick.price);
     timestamps.push(tick.timestamp);
     
@@ -58,27 +54,116 @@ export function calculateTradeIndicators(tradeTicks: TradeTick[]): TradeIndicato
     
     cumulativeBuy.push(cumBuy);
     cumulativeSell.push(cumSell);
-    
-    if (index === 0) {
-      buyAcceleration.push(0);
-      sellAcceleration.push(0);
-    } else {
-      buyAcceleration.push(cumBuy - prevCumBuy);
-      sellAcceleration.push(cumSell - prevCumSell);
-    }
-    
-    prevCumBuy = cumBuy;
-    prevCumSell = cumSell;
   });
+  
+  const macdResult = calculateMACD(prices);
+  const rsi = calculateRSI(prices);
   
   return {
     prices,
     timestamps,
     cumulativeBuy,
     cumulativeSell,
-    buyAcceleration,
-    sellAcceleration
+    macdDIF: macdResult.dif,
+    macdDEA: macdResult.dea,
+    macdHistogram: macdResult.histogram,
+    rsi
   };
+}
+
+function calculateMACD(prices: number[], fast: number = 12, slow: number = 26, signal: number = 9) {
+  const dif: number[] = [];
+  const dea: number[] = [];
+  const histogram: number[] = [];
+  
+  const emaFast = calculateEMA(prices, fast);
+  const emaSlow = calculateEMA(prices, slow);
+  
+  for (let i = 0; i < prices.length; i++) {
+    if (i < slow - 1) {
+      dif.push(0);
+      dea.push(0);
+      histogram.push(0);
+    } else {
+      const d = emaFast[i] - emaSlow[i];
+      dif.push(d);
+      
+      if (dif.filter(v => v !== 0).length === 0) {
+        dea.push(0);
+      } else {
+        const prevDea = i > 0 ? dea[i - 1] : 0;
+        dea.push(prevDea * (1 - 2 / (signal + 1)) + d * (2 / (signal + 1)));
+      }
+      
+      histogram.push((d - dea[i]) * 2);
+    }
+  }
+  
+  return { dif, dea, histogram };
+}
+
+function calculateEMA(prices: number[], period: number): number[] {
+  const ema: number[] = [];
+  const multiplier = 2 / (period + 1);
+  
+  if (prices.length === 0) return ema;
+  
+  ema[0] = prices[0];
+  for (let i = 1; i < prices.length; i++) {
+    ema[i] = (prices[i] - ema[i - 1]) * multiplier + ema[i - 1];
+  }
+  
+  return ema;
+}
+
+function calculateRSI(prices: number[], period: number = 14): number[] {
+  const rsi: number[] = [];
+  
+  if (prices.length < period + 1) {
+    return prices.map(() => 50);
+  }
+  
+  const changes: number[] = [];
+  for (let i = 1; i < prices.length; i++) {
+    changes.push(prices[i] - prices[i - 1]);
+  }
+  
+  let avgGain = 0;
+  let avgLoss = 0;
+  
+  for (let i = 0; i < period; i++) {
+    const change = changes[i];
+    if (change > 0) {
+      avgGain += change;
+    } else {
+      avgLoss += Math.abs(change);
+    }
+  }
+  
+  avgGain /= period;
+  avgLoss /= period;
+  
+  for (let i = 0; i < prices.length; i++) {
+    if (i < period) {
+      rsi.push(50);
+    } else {
+      const change = changes[i - 1];
+      const gain = change > 0 ? change : 0;
+      const loss = change < 0 ? Math.abs(change) : 0;
+      
+      avgGain = (avgGain * (period - 1) + gain) / period;
+      avgLoss = (avgLoss * (period - 1) + loss) / period;
+      
+      if (avgLoss === 0) {
+        rsi.push(100);
+      } else {
+        const rs = avgGain / avgLoss;
+        rsi.push(100 - 100 / (1 + rs));
+      }
+    }
+  }
+  
+  return rsi;
 }
 
 export function calculateCapitalFlow(tradeTicks: TradeTick[]): CapitalFlowStats {
