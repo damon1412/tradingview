@@ -138,11 +138,13 @@ const App: React.FC = () => {
 
   const handleTimeFrameChange = (newTimeFrame: TimeFrame) => {
     setTimeFrame(newTimeFrame);
+    loadStockData(stockCode, newTimeFrame, dataRange);
   };
 
   const handleSelectStock = (code: string, name: string) => {
     setStockCode(code);
     setStockName(name);
+    loadStockData(code, timeFrame, dataRange);
     setSelectedRange(null);
     setPinnedProfiles([]);
     setPriceLevels(100);
@@ -233,8 +235,9 @@ const App: React.FC = () => {
       const firstItem = filteredWatchlist[0];
       setStockCode(firstItem.code);
       setStockName(firstItem.name);
+      loadStockData(firstItem.code, timeFrame, dataRange);
     }
-  }, [filteredWatchlist, stockCode, setStockCode, setStockName]);
+  }, []);
 
   const chartWidth = Math.max(0, containerWidth - PROFILE_WIDTH - 32);
 
