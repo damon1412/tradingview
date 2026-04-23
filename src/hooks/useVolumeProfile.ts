@@ -38,9 +38,30 @@ export function useVolumeProfile(
             const filteredMinuteData = minuteData.filter(
               item => item.timestamp >= selectedData[0].timestamp && item.timestamp <= selectedData[selectedData.length - 1].timestamp
             );
-            if (filteredMinuteData.length > selectedData.length) {
+            
+            if (filteredMinuteData.length > selectedData.length * 10) {
               setVolumeProfileData(filteredMinuteData);
               setDataSourceLabel('1分钟数据');
+              return;
+            }
+            
+            const minuteDaySet = new Set<string>();
+            filteredMinuteData.forEach(item => {
+              const d = new Date(item.timestamp);
+              const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+              minuteDaySet.add(key);
+            });
+            
+            const dailyDataForGaps = selectedData.filter(item => {
+              const d = new Date(item.timestamp);
+              const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+              return !minuteDaySet.has(key);
+            });
+            
+            if (dailyDataForGaps.length > 0) {
+              const merged = [...filteredMinuteData, ...dailyDataForGaps].sort((a, b) => a.timestamp - b.timestamp);
+              setVolumeProfileData(merged);
+              setDataSourceLabel('1分钟+日线混合数据');
               return;
             }
           }
