@@ -1,0 +1,67 @@
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { searchStocks } from '../services/stockApi';
+
+export function useSearch() {
+  const [searchInput, setSearchInput] = useState('');
+  const [searchResults, setSearchResults] = useState<{code: string; name: string}[]>([]);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const debounceTimer = useRef<number | null>(null);
+
+  const handleSearchInputChange = useCallback((value: string) => {
+    setSearchInput(value);
+    
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+    
+    if (value.trim().length < 2) {
+      setShowSearchResults(false);
+      setSearchResults([]);
+      return;
+    }
+
+    debounceTimer.current = window.setTimeout(async () => {
+      const { data: results, error } = await searchStocks(value.trim());
+      if (error) {
+        console.error('搜索失败:', error);
+        setSearchResults([]);
+        setShowSearchResults(false);
+        return;
+      }
+      setSearchResults(results);
+      setShowSearchResults(results.length > 0);
+    }, 300);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
+    };
+  }, []);
+
+  const handleSelectStock = useCallback((code: string, name: string, callback: (code: string, name: string) => void) => {
+    setSearchInput('');
+    setShowSearchResults(false);
+    setSearchResults([]);
+    callback(code, name);
+  }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent, callback: (code: string, name: string) => void) => {
+    if (e.key === 'Enter' && searchResults.length > 0) {
+      handleSelectStock(searchResults[0].code, searchResults[0].name, callback);
+    }
+  }, [searchResults, handleSelectStock]);
+
+  return {
+    searchInput,
+    setSearchInput,
+    searchResults,
+    showSearchResults,
+    setShowSearchResults,
+    handleSearchInputChange,
+    handleSelectStock,
+    handleKeyDown
+  };
+}

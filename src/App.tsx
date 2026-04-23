@@ -5,30 +5,28 @@ import { IndicatorChart } from './components/IndicatorChart';
 import { StatsPanel } from './components/StatsPanel';
 import { TimeFrameSelector } from './components/TimeFrameSelector';
 import { TradeAnalysisPanel } from './components/TradeAnalysisPanel';
-import { generateMockStockData, calculateVolumeProfile, getTimeFrameLabel } from './utils/stockData';
-import { searchStocks, getStockDataWithFallback, get1MinuteDataForVolumeProfile, getApiTypeFromTimeFrame, getMinuteData, getQuote, convertMinuteToStockData } from './services/stockApi';
-import type { StockData, SelectedRange, VolumeProfileStats, TimeFrame, PinnedProfile } from './types/stock';
+import { Toast, useToast } from './components/Toast';
+import { useStockData } from './hooks/useStockData';
+import { useSearch } from './hooks/useSearch';
+import { useVolumeProfile } from './hooks/useVolumeProfile';
+import { getTimeFrameLabel } from './utils/stockData';
+import type { SelectedRange, VolumeProfileStats, TimeFrame, PinnedProfile } from './types/stock';
 
 const CHART_HEIGHT = 360;
 const VOLUME_HEIGHT = 100;
 const PROFILE_WIDTH = 120;
 
 const App: React.FC = () => {
+  const { showToast, toasts, dismissToast } = useToast();
+  const { data, displayData, stockCode, setStockCode, stockName, setStockName, isLoading, setIsLoading, zoomRange, setZoomRange, loadStockData: loadStockDataRaw } = useStockData(showToast);
+  const { searchInput, searchResults, showSearchResults, handleSearchInputChange, handleSelectStock: handleSelectStockRaw, handleKeyDown } = useSearch();
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('1d');
-  const [dataRange, setDataRange] = useState<string>('1y'); // 数据显示范围
-  const [selectedIndicator, setSelectedIndicator] = useState<'volume' | 'macd' | 'rsi'>('volume'); // 选中的技术指标
-  const [data, setData] = useState<StockData[]>([]);
+  const [dataRange, setDataRange] = useState<string>('1y');
+  const [selectedIndicator, setSelectedIndicator] = useState<'volume' | 'macd' | 'rsi'>('volume');
   const [selectedRange, setSelectedRange] = useState<SelectedRange | null>(null);
   const [pinnedProfiles, setPinnedProfiles] = useState<PinnedProfile[]>([]);
   const [containerWidth, setContainerWidth] = useState(0);
   const [priceLevels, setPriceLevels] = useState(40);
-  const [stockCode, setStockCode] = useState('000001');
-  const [stockName, setStockName] = useState('平安银行');
-  const [searchInput, setSearchInput] = useState('');
-  const [searchResults, setSearchResults] = useState<{code: string; name: string}[]>([]);
-  const [showSearchResults, setShowSearchResults] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [zoomRange, setZoomRange] = useState<{startIndex: number; endIndex: number} | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,95 +35,36 @@ const App: React.FC = () => {
         setContainerWidth(containerRef.current.clientWidth);
       }
     };
-
     updateWidth();
     window.addEventListener('resize', updateWidth);
     return () => window.removeEventListener('resize', updateWidth);
   }, []);
+
+  const loadStockData = useCallback((code: string, tf: TimeFrame, range?: string) => {
+    loadStockDataRaw(code, tf, range ?? dataRange);
+  }, [loadStockDataRaw, dataRange]);
 
   useEffect(() => {
     loadStockData(stockCode, timeFrame);
     setSelectedRange(null);
     setZoomRange(null);
     setPriceLevels(40);
-    // 只在切换股票时清空固定点位，切换周期时保留
   }, [timeFrame, stockCode, dataRange]);
 
-  const displayData = useMemo(() => {
-    if (!zoomRange) return data;
-    return data.slice(zoomRange.startIndex, zoomRange.endIndex + 1);
-  }, [data, zoomRange]);
-
-  const activeProfileRange = selectedRange;
-
   const selectedData = useMemo(() => {
-    if (!activeProfileRange) {
-      // 没有选中范围，返回 displayData（已根据 zoomRange 过滤）
-      return displayData;
-    }
-    // 有选中范围，从 displayData 中切片
-    return displayData.slice(activeProfileRange.startIndex, activeProfileRange.endIndex + 1);
-  }, [displayData, activeProfileRange]);
+    if (!selectedRange) return displayData;
+    return displayData.slice(selectedRange.startIndex, selectedRange.endIndex + 1);
+  }, [displayData, selectedRange]);
 
-  const [volumeProfileData, setVolumeProfileData] = useState<StockData[]>([]);
-
-  useEffect(() => {
-    const loadVolumeProfileData = async () => {
-      if (selectedData.length === 0) {
-        setVolumeProfileData([]);
-        return;
-      }
-
-      if (stockCode !== 'DEMO' && timeFrame !== '1m') {
-        const startDate = new Date(selectedData[0].timestamp);
-        const endDate = new Date(selectedData[selectedData.length - 1].timestamp);
-        const formatDate = (date: Date) => {
-          const year = date.getFullYear();
-          const month = (date.getMonth() + 1).toString().padStart(2, '0');
-          const day = date.getDate().toString().padStart(2, '0');
-          return `${year}${month}${day}`;
-        };
-        const startDateStr = formatDate(startDate);
-        const endDateStr = formatDate(endDate);
-
-        try {
-          const { data: minuteData, error } = await get1MinuteDataForVolumeProfile(stockCode, startDateStr, endDateStr);
-          if (error) {
-            console.error('获取1分钟数据失败:', error);
-            setVolumeProfileData(selectedData);
-            return;
-          }
-          if (minuteData.length > 0) {
-            const filteredMinuteData = minuteData.filter(
-              item => item.timestamp >= selectedData[0].timestamp && item.timestamp <= selectedData[selectedData.length - 1].timestamp
-            );
-            if (filteredMinuteData.length > selectedData.length) {
-              setVolumeProfileData(filteredMinuteData);
-            } else {
-              setVolumeProfileData(selectedData);
-            }
-          } else {
-            setVolumeProfileData(selectedData);
-          }
-        } catch (err) {
-          console.error('加载1分钟数据失败:', err);
-          setVolumeProfileData(selectedData);
-        }
-      } else {
-        setVolumeProfileData(selectedData);
-      }
-    };
-
-    loadVolumeProfileData();
-  }, [selectedData, stockCode, timeFrame]);
+  const { volumeProfileData, volumeProfile, hasIncompleteMinuteData, minuteDataCount, displayDataCount } = useVolumeProfile(selectedData, stockCode, timeFrame, priceLevels);
 
   const stats = useMemo<VolumeProfileStats | null>(() => {
-    if (volumeProfileData.length === 0) return null;
-    const { profile } = calculateVolumeProfile(volumeProfileData, priceLevels);
-    return calculateVolumeProfileStats(profile);
-  }, [volumeProfileData, priceLevels]);
+    if (!volumeProfile) return null;
+    return calculateVolumeProfileStats(volumeProfile);
+  }, [volumeProfile]);
 
   const priceRange = useMemo(() => {
+    if (displayData.length === 0) return { min: 0, max: 1 };
     const min = Math.min(...displayData.map(d => d.low));
     const max = Math.max(...displayData.map(d => d.high));
     return { min, max };
@@ -171,103 +110,19 @@ const App: React.FC = () => {
     setTimeFrame(newTimeFrame);
   };
 
-  const loadStockData = async (code: string, tf: TimeFrame) => {
-    setIsLoading(true);
-    try {
-      if (tf === 'minute') {
-        const { data: quoteData, error: quoteError } = await getQuote(code);
-        if (quoteError) {
-          alert(`获取行情数据失败: ${quoteError.message}`);
-          return;
-        }
-        const previousClose = quoteData?.Last || 0;
-        
-        const { data: minuteData, error: minuteError } = await getMinuteData(code);
-        if (minuteError) {
-          alert(`获取分时数据失败: ${minuteError.message}`);
-          return;
-        }
-        if (minuteData && minuteData.list.length > 0) {
-          const stockData = convertMinuteToStockData(minuteData.list, previousClose);
-          setData(stockData);
-        } else {
-          alert('未找到该股票分时数据');
-        }
-        return;
-      }
-
-      const { data: stockData, error } = await getStockDataWithFallback(code, tf);
-      if (error) {
-        alert(`获取股票数据失败: ${error.message}`);
-        return;
-      }
-      if (stockData.length > 0) {
-        let filteredData = stockData;
-        if (dataRange !== 'all') {
-          const now = Date.now();
-          let rangeMs: number;
-          switch (dataRange) {
-            case '1m': rangeMs = 30 * 24 * 60 * 60 * 1000; break;
-            case '3m': rangeMs = 90 * 24 * 60 * 60 * 1000; break;
-            case '6m': rangeMs = 180 * 24 * 60 * 60 * 1000; break;
-            case '1y': rangeMs = 365 * 24 * 60 * 60 * 1000; break;
-            case '3y': rangeMs = 3 * 365 * 24 * 60 * 60 * 1000; break;
-            case '5y': rangeMs = 5 * 365 * 24 * 60 * 60 * 1000; break;
-            default: rangeMs = 365 * 24 * 60 * 60 * 1000;
-          }
-          const cutoffTime = now - rangeMs;
-          filteredData = stockData.filter(item => item.timestamp >= cutoffTime);
-        }
-        setData(filteredData);
-      } else {
-        alert('未找到该股票数据，请检查股票代码');
-      }
-    } catch (error) {
-      console.error('加载股票数据失败:', error);
-      alert('获取股票数据失败');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSearchInputChange = async (value: string) => {
-    setSearchInput(value);
-    if (value.trim().length >= 2) {
-      const { data: results, error } = await searchStocks(value.trim());
-      if (error) {
-        console.error('搜索失败:', error);
-        setSearchResults([]);
-        setShowSearchResults(false);
-        return;
-      }
-      setSearchResults(results);
-      setShowSearchResults(results.length > 0);
-    } else {
-      setShowSearchResults(false);
-    }
-  };
-
   const handleSelectStock = (code: string, name: string) => {
     setStockCode(code);
     setStockName(name);
-    setSearchInput('');
-    setShowSearchResults(false);
-    setSearchResults([]);
     setSelectedRange(null);
     setPinnedProfiles([]);
     setPriceLevels(40);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && searchResults.length > 0) {
-      handleSelectStock(searchResults[0].code, searchResults[0].name);
-    }
   };
 
   const chartWidth = Math.max(0, containerWidth - PROFILE_WIDTH - 32);
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-200">
+      <Toast toasts={toasts} onDismiss={dismissToast} />
       <header className="bg-slate-800 border-b border-slate-700">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -288,7 +143,7 @@ const App: React.FC = () => {
                     type="text"
                     value={searchInput}
                     onChange={(e) => handleSearchInputChange(e.target.value)}
-                    onKeyDown={handleKeyDown}
+                    onKeyDown={(e) => handleKeyDown(e, (code, name) => handleSelectStockRaw(code, name, handleSelectStock))}
                     placeholder="输入股票代码或名称"
                     className="bg-transparent text-sm text-white placeholder-slate-400 outline-none w-32"
                   />
@@ -299,7 +154,7 @@ const App: React.FC = () => {
                     {searchResults.map((result) => (
                       <button
                         key={result.code}
-                        onClick={() => handleSelectStock(result.code, result.name)}
+                        onClick={() => handleSelectStockRaw(result.code, result.name, handleSelectStock)}
                         className="w-full px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 transition-colors flex items-center justify-between"
                       >
                         <span className="font-mono text-blue-400">{result.code}</span>
@@ -310,8 +165,6 @@ const App: React.FC = () => {
                 )}
               </div>
               <TimeFrameSelector value={timeFrame} onChange={handleTimeFrameChange} />
-
-              {/* 数据范围选择 */}
               <div className="flex gap-1 bg-slate-800 rounded-lg p-1 border border-slate-700">
                 {[
                   { value: '1m', label: '1月' },
@@ -326,8 +179,7 @@ const App: React.FC = () => {
                     key={range.value}
                     onClick={() => {
                       setDataRange(range.value);
-                      // 切换范围后重新加载数据
-                      loadStockData(stockCode, timeFrame);
+                      loadStockData(stockCode, timeFrame, range.value);
                     }}
                     className={`px-2 py-1 text-sm rounded-md transition-colors ${
                       dataRange === range.value
@@ -339,8 +191,6 @@ const App: React.FC = () => {
                   </button>
                 ))}
               </div>
-
-
             </div>
           </div>
         </div>
@@ -348,7 +198,6 @@ const App: React.FC = () => {
 
       <main className="max-w-7xl mx-auto px-4 py-6">
         <div className="grid grid-cols-1 gap-6 mb-6">
-          {/* 逐笔分析面板始终显示 */}
           <TradeAnalysisPanel stockCode={stockCode} pinnedProfiles={pinnedProfiles} />
         </div>
 
@@ -359,6 +208,12 @@ const App: React.FC = () => {
                 <div className="flex items-center gap-4">
                   <h2 className="font-semibold text-slate-200">{stockCode} {stockName && <span className="text-slate-400 text-sm">({stockName})</span>}</h2>
                   <span className="text-xs text-slate-500">{getTimeFrameLabel(timeFrame)}</span>
+                  {hasIncompleteMinuteData && (
+                    <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded" title={`仅获取到${minuteDataCount}条分钟数据（预期>${displayDataCount}条）`}>
+                      <i className="fas fa-exclamation-triangle mr-1"></i>
+                      分钟数据不完整
+                    </span>
+                  )}
                   {selectedRange && (
                     <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">
                       已选中 {selectedRange.endIndex - selectedRange.startIndex + 1} 根K线
@@ -435,7 +290,6 @@ const App: React.FC = () => {
                         onRangeSelect={handleRangeSelect}
                         onZoom={(range) => {
                           if (range) {
-                            // 计算相对于原始数据的索引
                             const baseIndex = zoomRange ? zoomRange.startIndex : 0;
                             setZoomRange({
                               startIndex: baseIndex + range.startIndex,
