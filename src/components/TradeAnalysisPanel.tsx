@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { TradeTrendChart } from './TradeTrendChart';
 import { TradeIndicatorChart } from './TradeIndicatorChart';
 import { getSinaTickData, getQuote, getTodayTradeData, getMinuteData, MinuteData } from '../services/stockApi';
@@ -21,13 +21,13 @@ export const TradeAnalysisPanel: React.FC<TradeAnalysisPanelProps> = ({ stockCod
   const [chartWidth, setChartWidth] = useState(0);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async (code: string) => {
     setIsLoading(true);
     setError(null);
     setDataSource(null);
     
     try {
-      const { data: quoteData, error: quoteError } = await getQuote(stockCode);
+      const { data: quoteData, error: quoteError } = await getQuote(code);
       if (quoteError) {
         setError('获取行情数据失败');
         return;
@@ -37,7 +37,7 @@ export const TradeAnalysisPanel: React.FC<TradeAnalysisPanelProps> = ({ stockCod
       let tradeData = null;
       let tradeError = null;
       
-      const { data: tdxData, error: tdxError } = await getTodayTradeData(stockCode);
+      const { data: tdxData, error: tdxError } = await getTodayTradeData(code);
       if (tdxData && tdxData.length > 0 && previousClose > 0) {
         const tdxPriceRaw = tdxData[0].Price;
         const tdxPriceInCloseUnit = tdxPriceRaw > 1000 ? tdxPriceRaw : tdxPriceRaw * 1000;
@@ -48,7 +48,7 @@ export const TradeAnalysisPanel: React.FC<TradeAnalysisPanelProps> = ({ stockCod
         }
       }
       if (!tradeData) {
-        const { data: sinaData, error: sinaError } = await getSinaTickData(stockCode, 1000);
+        const { data: sinaData, error: sinaError } = await getSinaTickData(code, 1000);
         if (sinaData && sinaData.length > 0) {
           tradeData = sinaData;
           setDataSource('tick');
@@ -61,7 +61,7 @@ export const TradeAnalysisPanel: React.FC<TradeAnalysisPanelProps> = ({ stockCod
       if (tradeData && tradeData.length > 0) {
         ticks = convertTradeTickData(tradeData, previousClose);
       } else {
-        const { data: minuteResult } = await getMinuteData(stockCode);
+        const { data: minuteResult } = await getMinuteData(code);
         if (minuteResult && minuteResult.list.length > 0 && previousClose > 0) {
           ticks = generateSimulatedTicks(minuteResult.list, previousClose);
           setDataSource('minute');
@@ -88,15 +88,15 @@ export const TradeAnalysisPanel: React.FC<TradeAnalysisPanelProps> = ({ stockCod
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!stockCode) return;
-    fetchData();
+    fetchData(stockCode);
   }, [stockCode, fetchData]);
 
   const handleRefresh = () => {
-    fetchData();
+    fetchData(stockCode);
   };
 
   useEffect(() => {
