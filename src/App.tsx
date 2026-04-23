@@ -205,6 +205,13 @@ const App: React.FC = () => {
     localStorage.setItem('activeWatchlistGroup', groupId);
   };
 
+  const handleReorderWatchlist = (newItems: WatchlistItem[]) => {
+    const otherItems = watchlist.filter(item => item.group !== activeGroup);
+    const updated = [...otherItems, ...newItems];
+    setWatchlist(updated);
+    localStorage.setItem('watchlist', JSON.stringify(updated));
+  };
+
   const filteredWatchlist = watchlist.filter(item => item.group === activeGroup);
 
   useEffect(() => {
@@ -320,6 +327,7 @@ const App: React.FC = () => {
           onAddCurrent={() => handleAddToWatchlist(stockCode, stockName)}
           onSelect={handleSelectStock}
           onRemove={handleRemoveFromWatchlist}
+          onReorder={handleReorderWatchlist}
           onClose={() => {}}
           onSwitchGroup={handleSwitchGroup}
           onManageGroups={() => setShowGroupManager(true)}
