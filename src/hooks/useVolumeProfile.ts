@@ -10,12 +10,13 @@ export function useVolumeProfile(
   priceLevels: number
 ) {
   const [volumeProfileData, setVolumeProfileData] = useState<StockData[]>([]);
-  const [minuteDataLoading, setMinuteDataLoading] = useState(false);
+  const [dataSourceLabel, setDataSourceLabel] = useState<string>('');
 
   useEffect(() => {
     const loadVolumeProfileData = async () => {
       if (selectedData.length === 0) {
         setVolumeProfileData([]);
+        setDataSourceLabel('');
         return;
       }
 
@@ -31,34 +32,27 @@ export function useVolumeProfile(
         const startDateStr = formatDate(startDate);
         const endDateStr = formatDate(endDate);
 
-        setMinuteDataLoading(true);
         try {
           const { data: minuteData, error } = await get1MinuteDataForVolumeProfile(stockCode, startDateStr, endDateStr);
-          if (error) {
-            setVolumeProfileData(selectedData);
-            return;
-          }
-          if (minuteData.length > 0) {
+          if (!error && minuteData.length > 0) {
             const filteredMinuteData = minuteData.filter(
               item => item.timestamp >= selectedData[0].timestamp && item.timestamp <= selectedData[selectedData.length - 1].timestamp
             );
             if (filteredMinuteData.length > selectedData.length) {
               setVolumeProfileData(filteredMinuteData);
-            } else {
-              setVolumeProfileData(selectedData);
+              setDataSourceLabel('1分钟数据');
+              return;
             }
-          } else {
-            setVolumeProfileData(selectedData);
           }
         } catch (err) {
           console.error('加载1分钟数据失败:', err);
-          setVolumeProfileData(selectedData);
-        } finally {
-          setMinuteDataLoading(false);
         }
+        
+        setVolumeProfileData(selectedData);
+        setDataSourceLabel('日线数据');
       } else {
         setVolumeProfileData(selectedData);
-        setMinuteDataLoading(false);
+        setDataSourceLabel(timeFrame === 'minute' ? '分时数据' : '1分钟数据');
       }
     };
 
@@ -71,9 +65,5 @@ export function useVolumeProfile(
     return profile;
   }, [volumeProfileData, priceLevels]);
 
-  const minuteDataCount = volumeProfileData.length;
-  const displayDataCount = selectedData.length;
-  const hasIncompleteMinuteData = !minuteDataLoading && stockCode !== 'DEMO' && timeFrame !== '1m' && timeFrame !== 'minute' && minuteDataCount > 0 && minuteDataCount <= displayDataCount * 1.5;
-
-  return { volumeProfileData, volumeProfile, minuteDataLoading, hasIncompleteMinuteData, minuteDataCount, displayDataCount };
+  return { volumeProfileData, volumeProfile, dataSourceLabel };
 }

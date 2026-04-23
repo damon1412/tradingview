@@ -56,7 +56,7 @@ const App: React.FC = () => {
     return displayData.slice(selectedRange.startIndex, selectedRange.endIndex + 1);
   }, [displayData, selectedRange]);
 
-  const { volumeProfileData, volumeProfile, hasIncompleteMinuteData, minuteDataCount, displayDataCount } = useVolumeProfile(selectedData, stockCode, timeFrame, priceLevels);
+  const { volumeProfileData, volumeProfile, dataSourceLabel } = useVolumeProfile(selectedData, stockCode, timeFrame, priceLevels);
 
   const stats = useMemo<VolumeProfileStats | null>(() => {
     if (!volumeProfile) return null;
@@ -224,10 +224,10 @@ const App: React.FC = () => {
                 <div className="flex items-center gap-4">
                   <h2 className="font-semibold text-slate-200">{stockCode} {stockName && <span className="text-slate-400 text-sm">({stockName})</span>}</h2>
                   <span className="text-xs text-slate-500">{getTimeFrameLabel(timeFrame)}</span>
-                  {hasIncompleteMinuteData && (
-                    <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded" title={`仅获取到${minuteDataCount}条分钟数据（预期>${displayDataCount}条）`}>
-                      <i className="fas fa-exclamation-triangle mr-1"></i>
-                      分钟数据不完整
+                  {dataSourceLabel && (
+                    <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded" title="筹码分布使用此数据计算">
+                      <i className="fas fa-database mr-1"></i>
+                      使用{dataSourceLabel}
                     </span>
                   )}
                   {selectedRange && (
