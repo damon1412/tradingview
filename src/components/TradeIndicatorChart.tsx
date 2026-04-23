@@ -8,16 +8,21 @@ interface TradeIndicatorChartProps {
   data: TradeIndicatorData;
   width: number;
   height: number;
+  onHoverIndexChange?: (index: number | null) => void;
+  hoverIndex?: number | null;
 }
 
 export const TradeIndicatorChart: React.FC<TradeIndicatorChartProps> = ({
   data,
   width,
-  height
+  height,
+  onHoverIndexChange,
+  hoverIndex: externalHoverIndex
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [internalHoverIndex, setInternalHoverIndex] = useState<number | null>(null);
   const [mode, setMode] = useState<IndicatorMode>('cumulative');
+  const hoverIndex = externalHoverIndex !== undefined ? externalHoverIndex : internalHoverIndex;
 
   const modes: IndicatorMode[] = ['cumulative', 'macd', 'rsi'];
   const modeLabels: Record<IndicatorMode, string> = {
@@ -322,12 +327,14 @@ export const TradeIndicatorChart: React.FC<TradeIndicatorChartProps> = ({
     const index = Math.round(ratio * (data.prices.length - 1));
 
     if (index >= 0 && index < data.prices.length) {
-      setHoverIndex(index);
+      setInternalHoverIndex(index);
+      onHoverIndexChange?.(index);
     }
   };
 
   const handleMouseLeave = () => {
-    setHoverIndex(null);
+    setInternalHoverIndex(null);
+    onHoverIndexChange?.(null);
   };
 
   if (data.prices.length === 0) {

@@ -6,16 +6,21 @@ interface TradeTrendChartProps {
   width: number;
   height: number;
   pinnedProfiles?: PinnedProfile[];
+  onHoverIndexChange?: (index: number | null) => void;
+  hoverIndex?: number | null;
 }
 
 export const TradeTrendChart: React.FC<TradeTrendChartProps> = ({
   data,
   width,
   height,
-  pinnedProfiles = []
+  pinnedProfiles = [],
+  onHoverIndexChange,
+  hoverIndex: externalHoverIndex
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [internalHoverIndex, setInternalHoverIndex] = useState<number | null>(null);
+  const hoverIndex = externalHoverIndex !== undefined ? externalHoverIndex : internalHoverIndex;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -239,12 +244,14 @@ export const TradeTrendChart: React.FC<TradeTrendChartProps> = ({
     const index = Math.round(ratio * (data.length - 1));
     
     if (index >= 0 && index < data.length) {
-      setHoverIndex(index);
+      setInternalHoverIndex(index);
+      onHoverIndexChange?.(index);
     }
   };
 
   const handleMouseLeave = () => {
-    setHoverIndex(null);
+    setInternalHoverIndex(null);
+    onHoverIndexChange?.(null);
   };
 
   if (data.length === 0) {

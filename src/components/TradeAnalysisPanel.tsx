@@ -19,6 +19,7 @@ export const TradeAnalysisPanel: React.FC<TradeAnalysisPanelProps> = ({ stockCod
   const [dataSource, setDataSource] = useState<'tick' | 'minute' | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState(0);
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -170,6 +171,8 @@ export const TradeAnalysisPanel: React.FC<TradeAnalysisPanelProps> = ({ stockCod
                 width={chartWidth}
                 height={200}
                 pinnedProfiles={pinnedProfiles}
+                onHoverIndexChange={setHoverIndex}
+                hoverIndex={hoverIndex}
               />
             </div>
 
@@ -183,6 +186,8 @@ export const TradeAnalysisPanel: React.FC<TradeAnalysisPanelProps> = ({ stockCod
                   data={indicatorData}
                   width={chartWidth}
                   height={180}
+                  onHoverIndexChange={setHoverIndex}
+                  hoverIndex={hoverIndex}
                 />
               )}
             </div>
