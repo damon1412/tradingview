@@ -513,6 +513,7 @@ export const VolatilityPage: React.FC<VolatilityPageProps> = ({ initialStockCode
                   height={CHART_HEIGHT}
                   indicator={selectedIndicator}
                   showBollingerBands={showBollingerBands}
+                  gridResult={showGridTrading ? gridResult : null}
                 />
               )}
             </div>
