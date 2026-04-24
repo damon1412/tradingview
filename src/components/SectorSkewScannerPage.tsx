@@ -70,7 +70,9 @@ export const SectorSkewScannerPage: React.FC = () => {
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed.map((item: SectorSkewItem) => ({
             ...item,
-            status: item.volSkew > 0 ? 'done' as const : item.status
+            status: item.volSkew > 0 ? 'done' as const : item.status,
+            multiTimeframeData: item.multiTimeframeData || [],
+            isLoadingMultiTimeframe: false
           }));
         }
       }
