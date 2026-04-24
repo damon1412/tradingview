@@ -1,23 +1,44 @@
 import { useState, useMemo, useEffect } from 'react';
 import type { StockData, TimeFrame } from '../types/stock';
-import { calculateVolumeProfile, getTimeFrameLabel } from '../utils/stockData';
+import { calculateVolumeProfile, getTimeFrameLabel, calculateVolumeProfileStats } from '../utils/stockData';
 import { get1MinuteDataForVolumeProfile } from '../services/stockApi';
+import { saveVolumeProfileCache, getVolumeProfileCache } from '../utils/analysisCache';
 
 export function useVolumeProfile(
   selectedData: StockData[],
   stockCode: string,
   timeFrame: TimeFrame,
-  priceLevels: number
+  dataRange: string,
+  priceLevels: number,
+  isFullData: boolean = true
 ) {
   const [volumeProfileData, setVolumeProfileData] = useState<StockData[]>([]);
   const [dataSourceLabel, setDataSourceLabel] = useState<string>('');
+  const [cachedProfile, setCachedProfile] = useState<{ price: number; volume: number }[] | null>(null);
+  const [cachedStats, setCachedStats] = useState<{ poc: number; vah: number; val: number; totalVolume: number } | null>(null);
 
   useEffect(() => {
     const loadVolumeProfileData = async () => {
       if (selectedData.length === 0) {
         setVolumeProfileData([]);
         setDataSourceLabel('');
+        setCachedProfile(null);
+        setCachedStats(null);
         return;
+      }
+
+      if (isFullData) {
+        const cache = getVolumeProfileCache(stockCode, timeFrame, dataRange, priceLevels);
+        if (cache) {
+          setCachedProfile(cache.profile);
+          setCachedStats(cache.stats);
+        } else {
+          setCachedProfile(null);
+          setCachedStats(null);
+        }
+      } else {
+        setCachedProfile(null);
+        setCachedStats(null);
       }
 
       if (stockCode !== 'DEMO' && timeFrame !== '1m' && timeFrame !== 'minute') {
@@ -66,13 +87,26 @@ export function useVolumeProfile(
     };
 
     loadVolumeProfileData();
-  }, [selectedData, stockCode, timeFrame]);
+  }, [selectedData, stockCode, timeFrame, dataRange, priceLevels]);
 
   const volumeProfile = useMemo(() => {
+    if (cachedProfile) return cachedProfile;
     if (volumeProfileData.length === 0) return null;
     const { profile } = calculateVolumeProfile(volumeProfileData, priceLevels);
+    
+    if (isFullData && stockCode !== 'DEMO') {
+      const stats = calculateVolumeProfileStats(profile);
+      saveVolumeProfileCache(stockCode, timeFrame, dataRange, priceLevels, profile, stats);
+    }
+    
     return profile;
-  }, [volumeProfileData, priceLevels]);
+  }, [cachedProfile, volumeProfileData, priceLevels, stockCode, timeFrame, dataRange, isFullData]);
 
-  return { volumeProfileData, volumeProfile, dataSourceLabel };
+  const volumeProfileStats = useMemo(() => {
+    if (cachedStats) return cachedStats;
+    if (!volumeProfile) return null;
+    return calculateVolumeProfileStats(volumeProfile);
+  }, [cachedStats, volumeProfile]);
+
+  return { volumeProfileData, volumeProfile, volumeProfileStats, dataSourceLabel };
 }

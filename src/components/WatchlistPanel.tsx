@@ -1,6 +1,7 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { WatchlistItem, WatchlistGroup } from '../types/stock';
+import { getCachedStocks } from '../utils/analysisCache';
 
 interface WatchlistPanelProps {
   items: WatchlistItem[];
@@ -15,6 +16,7 @@ interface WatchlistPanelProps {
   onClose: () => void;
   onSwitchGroup: (groupId: string) => void;
   onManageGroups: () => void;
+  onManageCache: () => void;
   onReorder: (items: WatchlistItem[]) => void;
   isMobile?: boolean;
   visible?: boolean;
@@ -35,6 +37,7 @@ export const WatchlistPanel: React.FC<WatchlistPanelProps> = ({
   onClose,
   onSwitchGroup,
   onManageGroups,
+  onManageCache,
   onReorder,
   isMobile = false,
   visible = true,
@@ -52,6 +55,8 @@ export const WatchlistPanel: React.FC<WatchlistPanelProps> = ({
   const panelRef = useRef<HTMLDivElement>(null);
   const isCurrentInWatchlist = items.some(item => item.code === currentCode);
   const closeThreshold = 100;
+  const cachedStocks = useMemo(() => getCachedStocks(), []);
+  const hasCachedStocks = cachedStocks.length > 0;
 
   const handleDragStart = useCallback((item: WatchlistItem) => {
     setDraggedItem(item);
@@ -230,6 +235,19 @@ export const WatchlistPanel: React.FC<WatchlistPanelProps> = ({
             <i className="fas fa-plus"></i>
             <span className="hidden sm:inline">添加</span>
           </button>
+          {hasCachedStocks && (
+            <button
+              onClick={onManageCache}
+              className="text-xs bg-slate-600 hover:bg-slate-500 text-slate-300 px-2 py-1 rounded transition-colors flex items-center gap-1 relative"
+              title="管理分析缓存"
+            >
+              <i className="fas fa-database"></i>
+              <span className="hidden sm:inline">缓存</span>
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full text-[8px] text-white flex items-center justify-center">
+                {cachedStocks.length}
+              </span>
+            </button>
+          )}
           <button
             onClick={onClose}
             className="text-slate-400 hover:text-slate-200 transition-colors p-1"

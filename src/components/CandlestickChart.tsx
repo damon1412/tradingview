@@ -36,9 +36,9 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
   const chartWidth = width - margin.left - margin.right;
   const chartHeight = height - margin.top - margin.bottom;
 
-  const minPrice = Math.min(...data.map(d => d.low));
-  const maxPrice = Math.max(...data.map(d => d.high));
-  const priceRange = maxPrice - minPrice;
+  const minPrice = data.length > 0 ? Math.min(...data.map(d => d.low)) : 0;
+  const maxPrice = data.length > 0 ? Math.max(...data.map(d => d.high)) : 1;
+  const priceRange = maxPrice - minPrice || 1;
 
   const candleWidth = Math.max(2, (chartWidth / data.length) * 0.7);
   const candleSpacing = chartWidth / data.length;

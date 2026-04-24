@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { CandlestickChart } from './components/CandlestickChart';
-import { VolumeProfile, calculateVolumeProfileStats } from './components/VolumeProfile';
+import { VolumeProfile } from './components/VolumeProfile';
 import { IndicatorChart } from './components/IndicatorChart';
 import { StatsPanel } from './components/StatsPanel';
 import { TimeFrameSelector } from './components/TimeFrameSelector';
@@ -9,6 +9,8 @@ import { Toast, useToast } from './components/Toast';
 import { WatchlistPanel } from './components/WatchlistPanel';
 import { AddWatchlistModal } from './components/AddWatchlistModal';
 import { GroupManagerModal } from './components/GroupManagerModal';
+import { CacheManagerModal } from './components/CacheManagerModal';
+import { clearAllAnalysisCache, getPinnedProfiles, savePinnedProfiles, addPinnedProfile, removePinnedProfile, clearPinnedProfiles } from './utils/analysisCache';
 import { useStockData } from './hooks/useStockData';
 import { useSearch } from './hooks/useSearch';
 import { useVolumeProfile } from './hooks/useVolumeProfile';
@@ -32,7 +34,16 @@ const App: React.FC<AppProps> = ({ initialStockCode, initialStockName }) => {
   const [dataRange, setDataRange] = useState<string>('1y');
   const [selectedIndicator, setSelectedIndicator] = useState<'volume' | 'macd' | 'rsi'>('volume');
   const [selectedRange, setSelectedRange] = useState<SelectedRange | null>(null);
-  const [pinnedProfiles, setPinnedProfiles] = useState<PinnedProfile[]>([]);
+  const [pinnedProfiles, setPinnedProfiles] = useState<PinnedProfile[]>(() => {
+    try {
+      if (initialStockCode) {
+        return getPinnedProfiles(initialStockCode);
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  });
   const [containerWidth, setContainerWidth] = useState(0);
   const [priceLevels, setPriceLevels] = useState(100);
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>(() => {
@@ -62,6 +73,7 @@ const App: React.FC<AppProps> = ({ initialStockCode, initialStockName }) => {
     }
   });
   const [showGroupManager, setShowGroupManager] = useState(false);
+  const [showCacheManager, setShowCacheManager] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -107,6 +119,7 @@ const App: React.FC<AppProps> = ({ initialStockCode, initialStockName }) => {
       setSelectedRange(null);
       setZoomRange(null);
       setPriceLevels(100);
+      setPinnedProfiles(getPinnedProfiles(stockCode));
     }
   }, [stockCode]);
 
@@ -115,12 +128,12 @@ const App: React.FC<AppProps> = ({ initialStockCode, initialStockName }) => {
     return displayData.slice(selectedRange.startIndex, selectedRange.endIndex + 1);
   }, [displayData, selectedRange]);
 
-  const { volumeProfileData, volumeProfile, dataSourceLabel } = useVolumeProfile(selectedData, stockCode, timeFrame, priceLevels);
+  const { volumeProfileData, volumeProfile, volumeProfileStats, dataSourceLabel } = useVolumeProfile(selectedData, stockCode, timeFrame, dataRange, priceLevels, !selectedRange);
 
   const stats = useMemo<VolumeProfileStats | null>(() => {
-    if (!volumeProfile) return null;
-    return calculateVolumeProfileStats(volumeProfile);
-  }, [volumeProfile]);
+    if (volumeProfileStats) return volumeProfileStats;
+    return null;
+  }, [volumeProfileStats]);
 
   const priceRange = useMemo(() => {
     if (displayData.length === 0) return { min: 0, max: 1 };
@@ -142,6 +155,7 @@ const App: React.FC<AppProps> = ({ initialStockCode, initialStockName }) => {
   const handleClearSelection = () => {
     setSelectedRange(null);
     setPinnedProfiles([]);
+    clearPinnedProfiles(stockCode);
   };
 
   const handlePinProfile = () => {
@@ -153,16 +167,25 @@ const App: React.FC<AppProps> = ({ initialStockCode, initialStockName }) => {
         stats,
         color: colors[pinnedProfiles.length % colors.length]
       };
-      setPinnedProfiles(prev => [...prev, newProfile]);
+      setPinnedProfiles(prev => {
+        const updated = [...prev, newProfile];
+        savePinnedProfiles(stockCode, updated);
+        return updated;
+      });
     }
   };
 
   const handleUnpinProfile = (id: string) => {
-    setPinnedProfiles(prev => prev.filter(p => p.id !== id));
+    setPinnedProfiles(prev => {
+      const updated = prev.filter(p => p.id !== id);
+      savePinnedProfiles(stockCode, updated);
+      return updated;
+    });
   };
 
   const handleClearAllPinned = () => {
     setPinnedProfiles([]);
+    clearPinnedProfiles(stockCode);
   };
 
   const handleTimeFrameChange = (newTimeFrame: TimeFrame) => {
@@ -175,7 +198,7 @@ const App: React.FC<AppProps> = ({ initialStockCode, initialStockName }) => {
     setStockName(name);
     loadStockData(code, timeFrame, dataRange);
     setSelectedRange(null);
-    setPinnedProfiles([]);
+    setPinnedProfiles(getPinnedProfiles(code));
     setPriceLevels(100);
   };
 
@@ -368,6 +391,7 @@ const App: React.FC<AppProps> = ({ initialStockCode, initialStockName }) => {
           onClose={() => {}}
           onSwitchGroup={handleSwitchGroup}
           onManageGroups={() => setShowGroupManager(true)}
+          onManageCache={() => setShowCacheManager(true)}
           isMobile={false}
           visible={true}
         />
@@ -614,6 +638,14 @@ const App: React.FC<AppProps> = ({ initialStockCode, initialStockName }) => {
           onAdd={handleAddGroup}
           onRemove={handleRemoveGroup}
           onClose={() => setShowGroupManager(false)}
+        />
+      )}
+
+      {showCacheManager && (
+        <CacheManagerModal
+          stockCode={stockCode}
+          onClose={() => setShowCacheManager(false)}
+          onClearStock={() => {}}
         />
       )}
     </div>

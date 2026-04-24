@@ -4,9 +4,11 @@ import { Toast, useToast } from './Toast';
 import { WatchlistPanel } from './WatchlistPanel';
 import { AddWatchlistModal } from './AddWatchlistModal';
 import { GroupManagerModal } from './GroupManagerModal';
+import { CacheManagerModal } from './CacheManagerModal';
 import { useStockData } from '../hooks/useStockData';
 import { useSearch } from '../hooks/useSearch';
 import { calculateVolatility, getTimeFrameLabel, calculateGrid } from '../utils/stockData';
+import { saveVolatilityCache, getVolatilityCache, clearVolatilityCache } from '../utils/analysisCache';
 import type { TimeFrame, WatchlistItem, WatchlistGroup, VolatilityIndicator, GridConfig } from '../types/stock';
 
 const CHART_HEIGHT = 500;
@@ -60,6 +62,7 @@ export const VolatilityPage: React.FC<VolatilityPageProps> = ({ initialStockCode
     }
   });
   const [showGroupManager, setShowGroupManager] = useState(false);
+  const [showCacheManager, setShowCacheManager] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
 
@@ -93,8 +96,26 @@ export const VolatilityPage: React.FC<VolatilityPageProps> = ({ initialStockCode
   }, [timeFrame]);
 
   const volatilityData = useMemo(() => {
-    return calculateVolatility(displayData, volatilityWindow, bbMultiplier);
-  }, [displayData, volatilityWindow, bbMultiplier]);
+    const result = calculateVolatility(displayData, volatilityWindow, bbMultiplier);
+    
+    if (result.length > 0 && stockCode !== 'DEMO') {
+      const latest = result[result.length - 1];
+      if (latest.upVolatility > 0 && latest.downVolatility > 0) {
+        saveVolatilityCache(
+          stockCode,
+          timeFrame,
+          dataRange,
+          volatilityWindow,
+          bbMultiplier,
+          { upVolatility: latest.upVolatility, downVolatility: latest.downVolatility, volSkew: latest.volSkew },
+          latest.volatility,
+          latest.atr
+        );
+      }
+    }
+    
+    return result;
+  }, [displayData, volatilityWindow, bbMultiplier, stockCode, timeFrame, dataRange]);
 
   const handleTimeFrameChange = (newTimeFrame: TimeFrame) => {
     setTimeFrame(newTimeFrame);
@@ -467,6 +488,7 @@ export const VolatilityPage: React.FC<VolatilityPageProps> = ({ initialStockCode
           onClose={() => {}}
           onSwitchGroup={handleSwitchGroup}
           onManageGroups={() => setShowGroupManager(true)}
+          onManageCache={() => setShowCacheManager(true)}
           isMobile={false}
           visible={true}
           skewCache={skewCache}
@@ -780,6 +802,16 @@ export const VolatilityPage: React.FC<VolatilityPageProps> = ({ initialStockCode
           onAdd={handleAddGroup}
           onRemove={handleRemoveGroup}
           onClose={() => setShowGroupManager(false)}
+        />
+      )}
+
+      {showCacheManager && (
+        <CacheManagerModal
+          stockCode={stockCode}
+          onClose={() => setShowCacheManager(false)}
+          onClearStock={(code) => {
+            clearVolatilityCache(code);
+          }}
         />
       )}
     </div>
