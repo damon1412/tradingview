@@ -1,4 +1,4 @@
-import type { StockData, TimeFrame } from '../types/stock';
+import type { StockData, TimeFrame, VolatilityData, GridConfig, GridResult } from '../types/stock';
 
 export function generateMockStockData(timeFrame: TimeFrame = '1d', count: number = 120): StockData[] {
   const data: StockData[] = [];
@@ -159,4 +159,149 @@ export function formatVolume(volume: number): string {
     return (volume / 1000).toFixed(2) + 'K';
   }
   return volume.toString();
+}
+
+export function calculateVolatility(
+  data: StockData[],
+  window: number = 20,
+  bbMultiplier: number = 2
+): VolatilityData[] {
+  if (data.length < 2) return [];
+
+  const returns: number[] = [];
+  for (let i = 1; i < data.length; i++) {
+    const ret = (data[i].close - data[i - 1].close) / data[i - 1].close;
+    returns.push(ret);
+  }
+
+  const trueRanges: number[] = [];
+  for (let i = 1; i < data.length; i++) {
+    const high = data[i].high;
+    const low = data[i].low;
+    const prevClose = data[i - 1].close;
+    const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
+    trueRanges.push(tr);
+  }
+
+  const volatilityData: VolatilityData[] = [];
+  
+  for (let i = 0; i < returns.length; i++) {
+    if (i < window - 1) {
+      volatilityData.push({
+        timestamp: data[i + 1].timestamp,
+        close: data[i + 1].close,
+        volatility: 0,
+        atr: 0,
+        hv: 0,
+        bbUpper: 0,
+        bbMiddle: 0,
+        bbLower: 0,
+        upVolatility: 0,
+        downVolatility: 0,
+        volSkew: 0
+      });
+      continue;
+    }
+
+    const windowReturns = returns.slice(i - window + 1, i + 1);
+    const mean = windowReturns.reduce((sum, r) => sum + r, 0) / windowReturns.length;
+    const variance = windowReturns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / windowReturns.length;
+    const volatility = Math.sqrt(variance * 252) * 100;
+
+    const windowTR = trueRanges.slice(i - window + 1, i + 1);
+    const atr = windowTR.reduce((sum, tr) => sum + tr, 0) / windowTR.length;
+
+    const windowCloses = [];
+    for (let j = i - window + 1; j <= i; j++) {
+      windowCloses.push(data[j + 1].close);
+    }
+    const sma = windowCloses.reduce((sum, c) => sum + c, 0) / windowCloses.length;
+
+    const bbUpper = sma + bbMultiplier * atr;
+    const bbMiddle = sma;
+    const bbLower = sma - bbMultiplier * atr;
+
+    const hv = volatility;
+
+    const windowReturnsRaw = returns.slice(i - window + 1, i + 1);
+    const upReturns = windowReturnsRaw.filter(r => r > 0);
+    const downReturns = windowReturnsRaw.filter(r => r < 0);
+
+    let upVolatility = 0;
+    if (upReturns.length > 0) {
+      const upMean = upReturns.reduce((sum, r) => sum + r, 0) / upReturns.length;
+      const upVariance = upReturns.reduce((sum, r) => sum + Math.pow(r - upMean, 2), 0) / upReturns.length;
+      upVolatility = Math.sqrt(upVariance * 252) * 100;
+    }
+
+    let downVolatility = 0;
+    if (downReturns.length > 0) {
+      const downMean = downReturns.reduce((sum, r) => sum + r, 0) / downReturns.length;
+      const downVariance = downReturns.reduce((sum, r) => sum + Math.pow(r - downMean, 2), 0) / downReturns.length;
+      downVolatility = Math.sqrt(downVariance * 252) * 100;
+    }
+
+    const volSkew = downVolatility > 0 ? upVolatility / downVolatility : upVolatility > 0 ? 999 : 0;
+
+    volatilityData.push({
+      timestamp: data[i + 1].timestamp,
+      close: data[i + 1].close,
+      volatility,
+      atr,
+      hv,
+      bbUpper,
+      bbMiddle,
+      bbLower,
+      upVolatility,
+      downVolatility,
+      volSkew
+    });
+  }
+
+  return volatilityData;
+}
+
+export function calculateGrid(config: GridConfig, currentPrice: number, volatilityData: VolatilityData[]): GridResult {
+  if (volatilityData.length === 0 || currentPrice <= 0) {
+    return { grids: [], stepSize: 0, stepPercent: 0, upperBound: 0, lowerBound: 0, totalLevels: 0, gridType: '' };
+  }
+
+  const validAtr = volatilityData.filter((v: VolatilityData) => v.atr > 0);
+  const latestAtr = validAtr.length > 0 ? validAtr[validAtr.length - 1].atr : 0;
+  const validVol = volatilityData.filter((v: VolatilityData) => v.volatility > 0);
+  const latestVolatility = validVol.length > 0 ? validVol[validVol.length - 1].volatility : 0;
+
+  let stepSize: number;
+  let gridType: string;
+
+  if (config.gridType === 'atr') {
+    stepSize = latestAtr * config.atrMultiplier;
+    gridType = `ATR(${config.atrMultiplier}x)`;
+  } else {
+    const dailyVol = latestVolatility / Math.sqrt(252);
+    stepSize = (dailyVol * config.volatilityMultiplier / 100) * currentPrice;
+    gridType = `HV(${config.volatilityMultiplier}x)`;
+  }
+
+  const totalRange = stepSize * config.gridCount;
+  const upperBound = currentPrice + totalRange;
+  const lowerBound = currentPrice - totalRange;
+
+  const grids: { price: number; level: number }[] = [];
+  for (let i = -config.gridCount; i <= config.gridCount; i++) {
+    grids.push({
+      price: currentPrice + i * stepSize,
+      level: i
+    });
+  }
+
+  return {
+    grids,
+    stepSize,
+    stepPercent: (stepSize / currentPrice) * 100,
+    upperBound,
+    lowerBound,
+    totalLevels: grids.length,
+    gridType
+  };
 }

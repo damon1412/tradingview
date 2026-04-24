@@ -18,6 +18,8 @@ interface WatchlistPanelProps {
   onReorder: (items: WatchlistItem[]) => void;
   isMobile?: boolean;
   visible?: boolean;
+  skewCache?: Record<string, { upVolatility: number; downVolatility: number; volSkew: number; name: string; updatedAt: number }>;
+  showSkew?: boolean;
 }
 
 export const WatchlistPanel: React.FC<WatchlistPanelProps> = ({
@@ -35,9 +37,12 @@ export const WatchlistPanel: React.FC<WatchlistPanelProps> = ({
   onManageGroups,
   onReorder,
   isMobile = false,
-  visible = true
+  visible = true,
+  skewCache = {},
+  showSkew = false
 }) => {
   const [showConfirmClear, setShowConfirmClear] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'name' | 'skew' | 'default'>('default');
   const [translateY, setTranslateY] = useState(0);
   const [draggedItem, setDraggedItem] = useState<WatchlistItem | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -63,7 +68,6 @@ export const WatchlistPanel: React.FC<WatchlistPanelProps> = ({
   }, [draggedItem]);
 
   const handleDrop = useCallback((targetItem: WatchlistItem) => {
-    e.preventDefault();
     if (!draggedItem || draggedItem.code === targetItem.code) {
       setDraggedItem(null);
       setDropTarget(null);
@@ -92,8 +96,22 @@ export const WatchlistPanel: React.FC<WatchlistPanelProps> = ({
     return /^(000|399|899|930|950|980|985|990|993|995|998|999)/.test(code);
   };
 
-  const stocks = items.filter(item => !isIndex(item.code));
-  const indices = items.filter(item => isIndex(item.code));
+  const sortedItems = [...items].sort((a, b) => {
+    if (sortBy === 'skew') {
+      const skewA = skewCache[a.code]?.volSkew || 0;
+      const skewB = skewCache[b.code]?.volSkew || 0;
+      return skewB - skewA;
+    }
+    if (sortBy === 'name') {
+      return a.code.localeCompare(b.code);
+    }
+    return items.indexOf(a) - items.indexOf(b);
+  });
+
+  const stocks = sortedItems.filter(item => !isIndex(item.code));
+  const indices = sortedItems.filter(item => isIndex(item.code));
+
+  const hasSkewData = sortedItems.some(item => skewCache[item.code]?.volSkew > 0);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (!isMobile) return;
@@ -177,6 +195,24 @@ export const WatchlistPanel: React.FC<WatchlistPanelProps> = ({
           <span className="text-xs text-slate-500 font-normal">({items.length})</span>
         </h3>
         <div className="flex gap-1.5">
+          {showSkew && hasSkewData && (
+            <div className="flex items-center gap-0.5 mr-1">
+              <button
+                onClick={() => setSortBy('default')}
+                className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${sortBy === 'default' ? 'bg-slate-600 text-white' : 'text-slate-500'}`}
+                title="默认顺序"
+              >
+                默认
+              </button>
+              <button
+                onClick={() => setSortBy('skew')}
+                className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${sortBy === 'skew' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}
+                title="按偏度比排序"
+              >
+                偏度
+              </button>
+            </div>
+          )}
           {!isCurrentInWatchlist && (
             <button
               onClick={onAddCurrent}
@@ -311,7 +347,21 @@ export const WatchlistPanel: React.FC<WatchlistPanelProps> = ({
                               </span>
                             )}
                           </div>
-                          <div className="text-xs text-slate-400 truncate">{item.name}</div>
+                          <div className="flex items-center gap-2">
+                            <div className="text-xs text-slate-400 truncate">{item.name}</div>
+                            {showSkew && skewCache[item.code]?.volSkew > 0 && (
+                              <span className={`text-[10px] px-1 py-0.5 rounded font-medium ${
+                                skewCache[item.code].volSkew >= 1
+                                  ? 'bg-emerald-600/20 text-emerald-400'
+                                  : 'bg-red-600/20 text-red-400'
+                              }`}>
+                                {skewCache[item.code].volSkew.toFixed(2)}
+                              </span>
+                            )}
+                            {showSkew && (!skewCache[item.code] || skewCache[item.code]?.volSkew === 0) && (
+                              <span className="text-[10px] text-slate-600">未计算</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <button

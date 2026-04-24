@@ -74,3 +74,36 @@ export interface CapitalFlowStats {
   smallInflow: number;
   smallOutflow: number;
 }
+
+export interface VolatilityData {
+  timestamp: number;
+  close: number;
+  volatility: number;
+  atr: number;
+  hv: number;
+  bbUpper: number;
+  bbMiddle: number;
+  bbLower: number;
+  upVolatility: number;
+  downVolatility: number;
+  volSkew: number;
+}
+
+export type VolatilityIndicator = 'volatility' | 'atr' | 'hv';
+
+export interface GridConfig {
+  atrMultiplier: number;
+  gridCount: number;
+  gridType: 'atr' | 'volatility';
+  volatilityMultiplier: number;
+}
+
+export interface GridResult {
+  grids: { price: number; level: number }[];
+  stepSize: number;
+  stepPercent: number;
+  upperBound: number;
+  lowerBound: number;
+  totalLevels: number;
+  gridType: string;
+}
