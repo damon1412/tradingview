@@ -439,6 +439,7 @@ export const VolatilityPage: React.FC<VolatilityPageProps> = ({ initialStockCode
                   <option value="1m">1分钟</option>
                   <option value="5m">5分钟</option>
                   <option value="10m">10分钟</option>
+                  <option value="15m">15分钟</option>
                   <option value="30m">30分钟</option>
                   <option value="60m">60分钟</option>
                   <option value="1d">日线</option>

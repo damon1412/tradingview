@@ -24,7 +24,7 @@ export interface SelectedRange {
   endIndex: number;
 }
 
-export type TimeFrame = 'minute' | '1m' | '5m' | '10m' | '30m' | '60m' | '1d' | '1w';
+export type TimeFrame = 'minute' | '1m' | '5m' | '10m' | '15m' | '30m' | '60m' | '1d' | '1w';
 
 export interface PinnedProfile {
   id: string;

@@ -11,6 +11,7 @@ const timeFrames: { value: TimeFrame; label: string }[] = [
   { value: '1m', label: '1分钟' },
   { value: '5m', label: '5分钟' },
   { value: '10m', label: '10分钟' },
+  { value: '15m', label: '15分钟' },
   { value: '30m', label: '30分钟' },
   { value: '60m', label: '60分钟' },
   { value: '1d', label: '日线' },
