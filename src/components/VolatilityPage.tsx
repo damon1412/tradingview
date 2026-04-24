@@ -199,6 +199,20 @@ export const VolatilityPage: React.FC<VolatilityPageProps> = ({ initialStockCode
   const filteredWatchlist = watchlist.filter(item => item.group === activeGroup);
 
   useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.search-container')) {
+        closeSearchDropdown();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [closeSearchDropdown]);
+
+  useEffect(() => {
     if (filteredWatchlist.length > 0 && stockCode === '000001') {
       const firstItem = filteredWatchlist[0];
       setStockCode(firstItem.code);

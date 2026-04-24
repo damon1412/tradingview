@@ -2,10 +2,11 @@ import React, { useState, useCallback } from 'react';
 import App from './App';
 import { VolatilityPage } from './components/VolatilityPage';
 import { SkewScannerPage } from './components/SkewScannerPage';
+import { IndexListManager } from './components/IndexListManager';
 import { NavigationProvider } from './NavigationContext';
 
 const Root: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'volume' | 'volatility' | 'scanner'>('volume');
+  const [activeTab, setActiveTab] = useState<'volume' | 'volatility' | 'scanner' | 'index-manager'>('volume');
   const [navTarget, setNavTarget] = useState<{ code: string; name: string; timestamp: number } | null>(null);
 
   const handleNavigate = useCallback((tab: 'volume' | 'volatility', code: string, name: string) => {
@@ -52,6 +53,17 @@ const Root: React.FC = () => {
                 <i className="fas fa-radar mr-2"></i>
                 偏度扫描器
               </button>
+              <button
+                onClick={() => { setNavTarget(null); setActiveTab('index-manager'); }}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'index-manager'
+                    ? 'border-teal-500 text-teal-400'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <i className="fas fa-list mr-2"></i>
+                指数管理
+              </button>
             </div>
           </div>
         </div>
@@ -59,8 +71,10 @@ const Root: React.FC = () => {
           <App key={navTarget?.timestamp || 'default'} initialStockCode={navTarget?.code} initialStockName={navTarget?.name} />
         ) : activeTab === 'volatility' ? (
           <VolatilityPage key={navTarget?.timestamp || 'default'} initialStockCode={navTarget?.code} initialStockName={navTarget?.name} />
-        ) : (
+        ) : activeTab === 'scanner' ? (
           <SkewScannerPage />
+        ) : (
+          <IndexListManager />
         )}
       </div>
     </NavigationProvider>

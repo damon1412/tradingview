@@ -1,15 +1,22 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { searchStocks } from '../services/stockApi';
 import { LOCAL_INDEX_LIST } from '../config/indices';
 
-const POPULAR_INDICES = LOCAL_INDEX_LIST.slice(0, 5);
+function getPopularIndices() {
+  return LOCAL_INDEX_LIST.slice(0, 5);
+}
 
 export function useSearch() {
   const [searchInput, setSearchInput] = useState('');
   const [searchResults, setSearchResults] = useState<{code: string; name: string}[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [showPopularIndices, setShowPopularIndices] = useState(false);
+  const [popularIndices, setPopularIndices] = useState<{code: string; name: string}[]>(() => getPopularIndices());
   const debounceTimer = useRef<number | null>(null);
+
+  const refreshPopularIndices = useCallback(() => {
+    setPopularIndices(getPopularIndices());
+  }, []);
 
   const handleSearchFocus = useCallback(() => {
     if (!searchInput.trim()) {
@@ -77,6 +84,7 @@ export function useSearch() {
     handleSelectStock,
     handleKeyDown,
     closeSearchDropdown,
-    popularIndices: POPULAR_INDICES
+    popularIndices,
+    refreshPopularIndices
   };
 }
