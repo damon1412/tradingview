@@ -1,1 +1,9 @@
 node_modules
+dist/
+dbs/
+public/sector-kline-data/
+public/sector-skew-*.json
+public/sector-rotation.json
+public/sector-members-data.json
+public/sector-multi-cycle.json
+*.DS_Store
