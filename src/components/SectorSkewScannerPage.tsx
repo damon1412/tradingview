@@ -48,10 +48,10 @@ type ScanResult = ScanSuccessResult | ScanErrorResult;
 
 const STORAGE_KEY = 'sectorSkewScannerResults';
 const MULTI_TIMEFRAMES = [
-  { timeframe: 'minute15', apiType: 'minute15', label: '15分钟' },
-  { timeframe: 'hour', apiType: 'hour', label: '60分钟' },
-  { timeframe: 'day', apiType: 'day', label: '日线' },
-  { timeframe: 'week', apiType: 'week', label: '周线' }
+  { timeframe: '15m', apiType: 'minute15', label: '15分钟' },
+  { timeframe: '60m', apiType: 'hour', label: '60分钟' },
+  { timeframe: '1d', apiType: 'day', label: '日线' },
+  { timeframe: '1w', apiType: 'week', label: '周线' }
 ];
 
 export const SectorSkewScannerPage: React.FC = () => {
