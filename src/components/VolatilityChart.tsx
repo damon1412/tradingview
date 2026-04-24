@@ -410,17 +410,28 @@ export const VolatilityChart: React.FC<VolatilityChartProps> = ({
       const vol = volatilityData[hoverIndex];
       const indicatorValue = vol ? (vol[indicatorKey] as number) : 0;
 
-      const tooltipX = x > chartWidth / 2 ? x - 200 : x + 10;
-      const tooltipY = margin.top + 10;
+      const tooltipWidth = 170;
       let tooltipHeight = 60;
       if (indicatorValue > 0) tooltipHeight += 18;
-      if (showBollingerBands && vol && vol.bbUpper > 0) tooltipHeight += 18;
+      if (showBollingerBands && vol && vol.bbUpper > 0) tooltipHeight += 42;
+      if (vol && vol.upVolatility > 0 && vol.downVolatility > 0) tooltipHeight += 16;
+
+      let tooltipX = x > chartWidth / 2 ? x - tooltipWidth - 10 : x + 10;
+      let tooltipY = margin.top + 10;
+
+      if (tooltipX < margin.left) tooltipX = margin.left;
+      if (tooltipX + tooltipWidth > width) tooltipX = width - tooltipWidth - margin.right;
+      if (tooltipY < margin.top) tooltipY = margin.top;
+      if (tooltipY + tooltipHeight > height - margin.bottom) tooltipY = height - margin.bottom - tooltipHeight - 10;
+      if (tooltipY + tooltipHeight > height) {
+        tooltipY = Math.max(margin.top, height - tooltipHeight - 10);
+      }
 
       ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
       ctx.strokeStyle = '#475569';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.roundRect(tooltipX, tooltipY, 170, tooltipHeight, 4);
+      ctx.roundRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 4);
       ctx.fill();
       ctx.stroke();
 

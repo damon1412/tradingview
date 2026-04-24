@@ -194,6 +194,7 @@ export const TradeTrendChart: React.FC<TradeTrendChartProps> = ({
       if (tooltipX + tooltipWidth > width) {
         tooltipX = x - tooltipWidth - 10;
       }
+      if (tooltipX < margin.left) tooltipX = margin.left;
       if (tooltipY < 0) tooltipY = 10;
       if (tooltipY + tooltipHeight > height) tooltipY = height - tooltipHeight - 10;
 

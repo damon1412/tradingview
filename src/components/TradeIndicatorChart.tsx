@@ -273,6 +273,11 @@ export const TradeIndicatorChart: React.FC<TradeIndicatorChartProps> = ({
     if (tooltipX + tooltipWidth > width) {
       tooltipX = x - tooltipWidth - 10;
     }
+    if (tooltipX < margin.left) tooltipX = margin.left;
+    if (tooltipY + tooltipHeight > height - margin.bottom) {
+      tooltipY = height - margin.bottom - tooltipHeight - 10;
+    }
+    if (tooltipY < margin.top) tooltipY = margin.top;
 
     ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
     ctx.fillRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
