@@ -2,11 +2,12 @@ import React, { useState, useCallback } from 'react';
 import App from './App';
 import { VolatilityPage } from './components/VolatilityPage';
 import { SkewScannerPage } from './components/SkewScannerPage';
+import { SectorSkewScannerPage } from './components/SectorSkewScannerPage';
 import { IndexListManager } from './components/IndexListManager';
 import { NavigationProvider } from './NavigationContext';
 
 const Root: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'volume' | 'volatility' | 'scanner' | 'index-manager'>('volume');
+  const [activeTab, setActiveTab] = useState<'volume' | 'volatility' | 'scanner' | 'sector-scanner' | 'index-manager'>('volume');
   const [navTarget, setNavTarget] = useState<{ code: string; name: string; timestamp: number } | null>(null);
 
   const handleNavigate = useCallback((tab: 'volume' | 'volatility', code: string, name: string) => {
@@ -51,7 +52,18 @@ const Root: React.FC = () => {
                 }`}
               >
                 <i className="fas fa-radar mr-2"></i>
-                偏度扫描器
+                个股偏度扫描
+              </button>
+              <button
+                onClick={() => { setNavTarget(null); setActiveTab('sector-scanner'); }}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'sector-scanner'
+                    ? 'border-violet-500 text-violet-400'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <i className="fas fa-layer-group mr-2"></i>
+                板块偏度扫描
               </button>
               <button
                 onClick={() => { setNavTarget(null); setActiveTab('index-manager'); }}
@@ -73,6 +85,8 @@ const Root: React.FC = () => {
           <VolatilityPage key={navTarget?.timestamp || 'default'} initialStockCode={navTarget?.code} initialStockName={navTarget?.name} />
         ) : activeTab === 'scanner' ? (
           <SkewScannerPage />
+        ) : activeTab === 'sector-scanner' ? (
+          <SectorSkewScannerPage />
         ) : (
           <IndexListManager />
         )}
