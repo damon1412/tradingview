@@ -104,13 +104,15 @@ export function calculateVolumeProfileStats(
   }
 
   const totalVolume = profile.reduce((sum, p) => sum + p.volume, 0);
+  if (totalVolume === 0) {
+    return { poc: 0, vah: 0, val: 0, totalVolume: 0 };
+  }
 
   const poc = profile.reduce((max, p) =>
     p.volume > max.volume ? p : max
   , profile[0]);
 
   const sortedByPrice = [...profile].sort((a, b) => a.price - b.price);
-  let cumulativeVolume = 0;
   const valueAreaVolume = totalVolume * 0.7;
 
   let vah = poc.price;
@@ -120,18 +122,24 @@ export function calculateVolumeProfileStats(
 
   let upperIndex = pocIndex;
   let lowerIndex = pocIndex;
-  cumulativeVolume = poc.volume;
+  let cumulativeVolume = poc.volume;
 
   while (cumulativeVolume < valueAreaVolume && (upperIndex < sortedByPrice.length - 1 || lowerIndex > 0)) {
     const upperVolume = upperIndex < sortedByPrice.length - 1 ? sortedByPrice[upperIndex + 1].volume : 0;
     const lowerVolume = lowerIndex > 0 ? sortedByPrice[lowerIndex - 1].volume : 0;
 
+    // 如果两边都没有成交量，停止扩展
+    if (upperVolume === 0 && lowerVolume === 0) {
+      break;
+    }
+
+    // 选择成交量更大的一侧扩展，如果相等则优先向上
     if (upperVolume >= lowerVolume && upperIndex < sortedByPrice.length - 1) {
       upperIndex++;
-      cumulativeVolume += upperVolume;
+      cumulativeVolume += sortedByPrice[upperIndex].volume;
     } else if (lowerIndex > 0) {
       lowerIndex--;
-      cumulativeVolume += lowerVolume;
+      cumulativeVolume += sortedByPrice[lowerIndex].volume;
     } else {
       break;
     }
@@ -170,6 +178,22 @@ export function calculateVolatility(
 ): VolatilityData[] {
   if (data.length < 2) return [];
 
+  // 添加前导占位元素，使volatilityData与stockData长度一致
+  // data[0]无法计算收益率（缺少前一天数据），用0填充
+  const placeholder: VolatilityData = {
+    timestamp: data[0].timestamp,
+    close: data[0].close,
+    volatility: 0,
+    atr: 0,
+    hv: 0,
+    bbUpper: 0,
+    bbMiddle: 0,
+    bbLower: 0,
+    upVolatility: 0,
+    downVolatility: 0,
+    volSkew: 0
+  };
+
   const returns: number[] = [];
   for (let i = 1; i < data.length; i++) {
     const ret = (data[i].close - data[i - 1].close) / data[i - 1].close;
@@ -185,7 +209,7 @@ export function calculateVolatility(
     trueRanges.push(tr);
   }
 
-  const volatilityData: VolatilityData[] = [];
+  const volatilityData: VolatilityData[] = [placeholder];
   
   for (let i = 0; i < returns.length; i++) {
     if (i < window - 1) {

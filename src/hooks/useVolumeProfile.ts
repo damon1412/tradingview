@@ -1,8 +1,22 @@
 import { useState, useMemo, useEffect } from 'react';
 import type { StockData, TimeFrame } from '../types/stock';
 import { calculateVolumeProfile, getTimeFrameLabel, calculateVolumeProfileStats } from '../utils/stockData';
-import { get1MinuteDataForVolumeProfile } from '../services/stockApi';
+import { get1MinuteDataForVolumeProfile, getKlineData, convertKlineToStockData } from '../services/stockApi';
 import { saveVolumeProfileCache, getVolumeProfileCache } from '../utils/analysisCache';
+
+interface TimeframeOption {
+  type: string;
+  label: string;
+  minCoverage: number;
+}
+
+const VOLUME_PROFILE_TIMEFRAMES: TimeframeOption[] = [
+  { type: 'minute1', label: '1分钟数据', minCoverage: 0.8 },
+  { type: 'minute5', label: '5分钟数据', minCoverage: 0.8 },
+  { type: 'minute15', label: '15分钟数据', minCoverage: 0.8 },
+  { type: 'minute30', label: '30分钟数据', minCoverage: 0.8 },
+  { type: 'hour', label: '60分钟数据', minCoverage: 0.8 },
+];
 
 export function useVolumeProfile(
   selectedData: StockData[],
@@ -53,31 +67,70 @@ export function useVolumeProfile(
         const startDateStr = formatDate(startDate);
         const endDateStr = formatDate(endDate);
 
-        try {
-          const { data: minuteData, error } = await get1MinuteDataForVolumeProfile(stockCode, startDateStr, endDateStr);
-          if (!error && minuteData.length > 0) {
-            const filteredMinuteData = minuteData.filter(
-              item => item.timestamp >= selectedData[0].timestamp && item.timestamp <= selectedData[selectedData.length - 1].timestamp
-            );
+        const checkDataCoverage = (data: StockData[], minCoverage: number): { passed: boolean; availableDays: number; filteredDays: number } => {
+          const filteredData = data.filter(
+            item => item.timestamp >= selectedData[0].timestamp && item.timestamp <= selectedData[selectedData.length - 1].timestamp
+          );
+          
+          const daySet = new Set<string>();
+          filteredData.forEach(item => {
+            const d = new Date(item.timestamp);
+            const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            daySet.add(key);
+          });
+          
+          // 计算选定范围内的交易日数量（用selectedData的实际条数作为基准）
+          const tradingDaysInRange = selectedData.length;
+          
+          // 分钟数据实际覆盖的交易日数量
+          const coveredDays = daySet.size;
+          
+          // 覆盖率 = 覆盖的交易日 / 选定范围的交易日
+          return {
+            passed: tradingDaysInRange > 0 && coveredDays >= tradingDaysInRange * minCoverage,
+            availableDays: coveredDays,
+            filteredDays: coveredDays
+          };
+        };
+
+        // 依次尝试不同时间周期的数据
+        for (const tf of VOLUME_PROFILE_TIMEFRAMES) {
+          try {
+            let data: StockData[] = [];
             
-            const minuteDaySet = new Set<string>();
-            filteredMinuteData.forEach(item => {
-              const d = new Date(item.timestamp);
-              const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-              minuteDaySet.add(key);
-            });
-            const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+            if (tf.type === 'minute1') {
+              const result = await get1MinuteDataForVolumeProfile(stockCode, startDateStr, endDateStr);
+              if (result.error || !result.data || result.data.length === 0) {
+                console.log(`${tf.label}无数据，继续尝试下一个`);
+                continue;
+              }
+              data = result.data;
+            } else {
+              const result = await getKlineData(stockCode, tf.type);
+              if (result.error || !result.data || !result.data.List || result.data.List.length === 0) {
+                console.log(`${tf.label}无数据，继续尝试下一个`);
+                continue;
+              }
+              data = convertKlineToStockData(result.data.List);
+            }
+
+            const { passed, availableDays, filteredDays } = checkDataCoverage(data, tf.minCoverage);
             
-            if (minuteDaySet.size >= totalDays * 0.8) {
-              setVolumeProfileData(filteredMinuteData);
-              setDataSourceLabel('1分钟数据');
+            if (passed) {
+              const filteredData = data.filter(
+                item => item.timestamp >= selectedData[0].timestamp && item.timestamp <= selectedData[selectedData.length - 1].timestamp
+              );
+              setVolumeProfileData(filteredData);
+              setDataSourceLabel(tf.label);
               return;
             }
+          } catch (err) {
+            console.error(`加载${tf.label}失败:`, err);
+            continue;
           }
-        } catch (err) {
-          console.error('加载1分钟数据失败:', err);
         }
         
+        // 所有时间周期都不完整，回退到日线数据
         setVolumeProfileData(selectedData);
         setDataSourceLabel('日线数据');
       } else {

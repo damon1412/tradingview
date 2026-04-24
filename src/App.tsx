@@ -408,9 +408,9 @@ const App: React.FC<AppProps> = ({ initialStockCode, initialStockName }) => {
                   <h2 className="font-semibold text-slate-200">{stockCode} {stockName && <span className="text-slate-400 text-sm">({stockName})</span>}</h2>
                   <span className="text-xs text-slate-500">{getTimeFrameLabel(timeFrame)}</span>
                   {dataSourceLabel && (
-                    <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded" title="筹码分布使用此数据计算">
+                    <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded flex items-center gap-1" title="筹码分布使用此数据源计算，优先级：1分钟→5分钟→15分钟→30分钟→60分钟→日线">
                       <i className="fas fa-database mr-1"></i>
-                      使用{dataSourceLabel}
+                      筹码分布: {dataSourceLabel}
                     </span>
                   )}
                   {selectedRange && (

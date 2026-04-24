@@ -64,6 +64,7 @@ export const SkewTrendChart: React.FC<SkewTrendChartProps> = ({ data, window }) 
             stroke="#64748b"
             tick={{ fontSize: 10, fill: '#64748b' }}
             tickLine={false}
+            tickFormatter={(value: number) => value.toFixed(2)}
           />
           <Tooltip
             contentStyle={{

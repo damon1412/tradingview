@@ -86,6 +86,7 @@ const SubChart: React.FC<{ tf: TimeframeSkewResult; calcWindow: number }> = ({ t
               tick={{ fontSize: 9, fill: '#64748b' }}
               tickLine={false}
               tickCount={4}
+              tickFormatter={(value: number) => value.toFixed(2)}
             />
             <Tooltip
               contentStyle={{
