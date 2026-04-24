@@ -31,7 +31,7 @@ const App: React.FC<AppProps> = ({ initialStockCode, initialStockName }) => {
   const { data, displayData, stockCode, setStockCode, stockName, setStockName, isLoading, zoomRange, setZoomRange, loadStockData: loadStockDataRaw } = useStockData(showToast);
   const { searchInput, searchResults, showSearchResults, showPopularIndices, handleSearchFocus, handleSearchInputChange, handleSelectStock: handleSelectStockRaw, handleKeyDown, closeSearchDropdown, popularIndices } = useSearch();
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('1d');
-  const [dataRange, setDataRange] = useState<string>('1y');
+  const [dataRange, setDataRange] = useState<string>('6m');
   const [selectedIndicator, setSelectedIndicator] = useState<'volume' | 'macd' | 'rsi'>('volume');
   const [selectedRange, setSelectedRange] = useState<SelectedRange | null>(null);
   const [pinnedProfiles, setPinnedProfiles] = useState<PinnedProfile[]>(() => {
