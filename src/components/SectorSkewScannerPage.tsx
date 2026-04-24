@@ -4,6 +4,15 @@ import { getKlineData, convertKlineToStockData } from '../services/stockApi';
 import type { VolatilityData } from '../types/stock';
 import { LOCAL_INDEX_LIST } from '../config/indices';
 import { SkewTrendChart } from './SkewTrendChart';
+import { MultiTimeframeSkewChart } from './MultiTimeframeSkewChart';
+
+interface TimeframeSkewResult {
+  timeframe: string;
+  label: string;
+  latestSkew: number;
+  isBullish: boolean;
+  history: VolatilityData[];
+}
 
 interface SectorSkewItem {
   code: string;
@@ -15,6 +24,8 @@ interface SectorSkewItem {
   latestClose: number;
   status: 'pending' | 'loading' | 'done' | 'error';
   skewHistory: VolatilityData[];
+  multiTimeframeData: TimeframeSkewResult[];
+  isLoadingMultiTimeframe: boolean;
 }
 
 interface ScanSuccessResult {
@@ -36,6 +47,12 @@ interface ScanErrorResult {
 type ScanResult = ScanSuccessResult | ScanErrorResult;
 
 const STORAGE_KEY = 'sectorSkewScannerResults';
+const MULTI_TIMEFRAMES = [
+  { timeframe: 'minute15', apiType: 'minute15', label: '15分钟' },
+  { timeframe: 'hour', apiType: 'hour', label: '60分钟' },
+  { timeframe: 'day', apiType: 'day', label: '日线' },
+  { timeframe: 'week', apiType: 'week', label: '周线' }
+];
 
 export const SectorSkewScannerPage: React.FC = () => {
   const [calcWindow, setCalcWindow] = useState(20);
@@ -67,7 +84,9 @@ export const SectorSkewScannerPage: React.FC = () => {
       volatility: 0,
       latestClose: 0,
       status: 'pending' as const,
-      skewHistory: [] as VolatilityData[]
+      skewHistory: [] as VolatilityData[],
+      multiTimeframeData: [] as TimeframeSkewResult[],
+      isLoadingMultiTimeframe: false
     }));
   }, []);
 
@@ -117,6 +136,61 @@ export const SectorSkewScannerPage: React.FC = () => {
       return { code, error: true };
     }
   }, [calcWindow]);
+
+  const scanMultiTimeframe = useCallback(async (code: string) => {
+    const results: TimeframeSkewResult[] = [];
+
+    for (const tf of MULTI_TIMEFRAMES) {
+      try {
+        const result = await getKlineData(code, tf.apiType as any);
+
+        if (!result.error && result.data) {
+          const stockData = convertKlineToStockData(result.data.List);
+          if (stockData.length >= calcWindow + 1) {
+            const volData = calculateVolatility(stockData, calcWindow);
+            const validSkew = volData.filter(v => v.upVolatility > 0 && v.downVolatility > 0);
+
+            if (validSkew.length > 0) {
+              const latest = validSkew[validSkew.length - 1];
+              results.push({
+                timeframe: tf.timeframe,
+                label: tf.label,
+                latestSkew: latest.volSkew,
+                isBullish: latest.volSkew >= 1,
+                history: validSkew
+              });
+            }
+          }
+        }
+      } catch { /* ignore single timeframe errors */ }
+    }
+
+    return results;
+  }, [calcWindow]);
+
+  const handleExpand = useCallback(async (code: string) => {
+    if (expandedCode === code) {
+      setExpandedCode(null);
+      return;
+    }
+
+    const item = items.find(i => i.code === code);
+    if (!item || item.multiTimeframeData.length > 0) {
+      setExpandedCode(code);
+      return;
+    }
+
+    setItems(prev => prev.map(i =>
+      i.code === code ? { ...i, isLoadingMultiTimeframe: true } : i
+    ));
+    setExpandedCode(code);
+
+    const multiTimeframeData = await scanMultiTimeframe(code);
+
+    setItems(prev => prev.map(i =>
+      i.code === code ? { ...i, multiTimeframeData, isLoadingMultiTimeframe: false } : i
+    ));
+  }, [expandedCode, items, scanMultiTimeframe]);
 
   const startScan = useCallback(async () => {
     setIsScanning(true);
@@ -337,7 +411,7 @@ export const SectorSkewScannerPage: React.FC = () => {
                     className={`border-t border-slate-700/50 hover:bg-slate-700/30 cursor-pointer ${
                       expandedCode === item.code ? 'bg-slate-700/50' : ''
                     }`}
-                    onClick={() => setExpandedCode(expandedCode === item.code ? null : item.code)}
+                    onClick={() => handleExpand(item.code)}
                   >
                     <td className="px-4 py-2 text-slate-500">{idx + 1}</td>
                     <td className="px-4 py-2 text-slate-300 font-medium">{item.name}</td>
@@ -395,7 +469,22 @@ export const SectorSkewScannerPage: React.FC = () => {
                             </div>
                           </div>
                           <div>
-                            <h4 className="text-xs text-slate-400 mb-2">偏度比趋势（近 {calcWindow * 2} 天）</h4>
+                            <h4 className="text-xs text-slate-400 mb-2">多周期偏度对比</h4>
+                            {item.isLoadingMultiTimeframe ? (
+                              <div className="flex items-center justify-center h-48 text-slate-500 text-xs">
+                                <i className="fas fa-spinner fa-spin mr-2"></i>
+                                加载多周期数据中...
+                              </div>
+                            ) : item.multiTimeframeData.length > 0 ? (
+                              <MultiTimeframeSkewChart data={item.multiTimeframeData} calcWindow={calcWindow} />
+                            ) : (
+                              <div className="flex items-center justify-center h-48 text-slate-500 text-xs">
+                                无法获取多周期数据
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="text-xs text-slate-400 mb-2">日线偏度比趋势（近 {calcWindow * 2} 天）</h4>
                             <SkewTrendChart data={item.skewHistory} window={calcWindow} />
                           </div>
                         </div>
