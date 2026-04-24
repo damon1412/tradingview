@@ -42,24 +42,28 @@ const TIMEFRAME_COLORS: Record<string, string> = {
 
 export const MultiTimeframeSkewChart: React.FC<MultiTimeframeSkewChartProps> = ({ data, calcWindow }) => {
   const chartData: ChartPoint[] = useMemo(() => {
-    const maxLength = Math.max(...data.map(d => d.history.length));
-    const points: ChartPoint[] = [];
+    const dateMap = new Map<string, ChartPoint>();
 
-    for (let i = 0; i < maxLength; i++) {
-      const point: ChartPoint = { date: '', '15m': null, '60m': null, '1d': null, '1w': null };
+    for (const tf of data) {
+      for (const item of tf.history) {
+        const date = new Date(item.timestamp).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
 
-      for (const timeframe of data) {
-        const item = timeframe.history[i];
-        if (item) {
-          point.date = new Date(item.timestamp).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
-          (point as any)[timeframe.timeframe] = item.volSkew;
+        if (!dateMap.has(date)) {
+          dateMap.set(date, { date, '15m': null, '60m': null, '1d': null, '1w': null });
         }
-      }
 
-      if (point.date) {
-        points.push(point);
+        const point = dateMap.get(date)!;
+        (point as any)[tf.timeframe] = item.volSkew;
       }
     }
+
+    const points = Array.from(dateMap.values()).sort((a, b) => {
+      const aMonth = parseInt(a.date.split('/')[0]);
+      const aDay = parseInt(a.date.split('/')[1]);
+      const bMonth = parseInt(b.date.split('/')[0]);
+      const bDay = parseInt(b.date.split('/')[1]);
+      return (aMonth * 100 + aDay) - (bMonth * 100 + bDay);
+    });
 
     return points;
   }, [data]);
