@@ -1,22 +1,20 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useCallback } from 'react';
 
 interface NavigationContextType {
   navigateToVolume: (code: string, name: string) => void;
   navigateToVolatility: (code: string, name: string) => void;
-  navigateToSectorVolume: (code: string, name: string) => void;
 }
 
 const NavigationContext = createContext<NavigationContextType>({
   navigateToVolume: () => {},
-  navigateToVolatility: () => {},
-  navigateToSectorVolume: () => {}
+  navigateToVolatility: () => {}
 });
 
 export const useNavigation = () => useContext(NavigationContext);
 
 export const NavigationProvider: React.FC<{
   children: React.ReactNode;
-  onNavigate: (tab: 'volume' | 'volatility' | 'sector-volume', code: string, name: string) => void;
+  onNavigate: (tab: 'volume' | 'volatility', code: string, name: string) => void;
 }> = ({ children, onNavigate }) => {
   const navigateToVolume = useCallback((code: string, name: string) => {
     onNavigate('volume', code, name);
@@ -26,12 +24,8 @@ export const NavigationProvider: React.FC<{
     onNavigate('volatility', code, name);
   }, [onNavigate]);
 
-  const navigateToSectorVolume = useCallback((code: string, name: string) => {
-    onNavigate('sector-volume', code, name);
-  }, [onNavigate]);
-
   return (
-    <NavigationContext.Provider value={{ navigateToVolume, navigateToVolatility, navigateToSectorVolume }}>
+    <NavigationContext.Provider value={{ navigateToVolume, navigateToVolatility }}>
       {children}
     </NavigationContext.Provider>
   );

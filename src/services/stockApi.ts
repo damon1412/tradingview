@@ -10,6 +10,12 @@ export interface SearchResult {
 
 export const LOCAL_INDEX_ETF_LIST: SearchResult[] = LOCAL_INDEX_LIST;
 
+const LOCAL_INDEX_CODES = new Set(LOCAL_INDEX_LIST.map(item => item.code));
+
+function isIndexCode(code: string): boolean {
+  return LOCAL_INDEX_CODES.has(code);
+}
+
 export interface KlineData {
   Last: number;
   Open: number;
@@ -82,7 +88,7 @@ export async function getKlineData(
 ): Promise<{ data: KlineResponse | null; error?: ApiError }> {
   try {
     const codeNum = code.replace(/^(sh|sz)/, '');
-    const isIndex = code.startsWith('sh0') || code.startsWith('sz399') || code.startsWith('sh9');
+    const isIndex = isIndexCode(code);
     const apiType = isIndex ? 'index' : 'kline';
     const response = await fetch(`/api/${apiType}?code=${code}&type=${type}`);
     if (!response.ok) throw response;
@@ -156,7 +162,7 @@ export async function get1MinuteDataForVolumeProfile(
 ): Promise<{ data: StockData[]; error?: ApiError }> {
   try {
     const codeNum = code.replace(/^(sh|sz)/, '');
-    const isIndex = code.startsWith('sh0') || code.startsWith('sz399') || code.startsWith('sh9');
+    const isIndex = isIndexCode(code);
     const apiType = isIndex ? 'index' : 'kline-history';
     
     let url;
