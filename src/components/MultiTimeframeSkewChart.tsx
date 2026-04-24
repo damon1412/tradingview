@@ -65,6 +65,7 @@ export const MultiTimeframeSkewChart: React.FC<MultiTimeframeSkewChartProps> = (
   }, [data]);
 
   const consistencyInfo = useMemo(() => {
+    const coreTimeframes = ['60m', '1d', '1w'];
     const latestSkews = data.map(d => ({
       timeframe: d.timeframe,
       label: d.label,
@@ -72,14 +73,16 @@ export const MultiTimeframeSkewChart: React.FC<MultiTimeframeSkewChartProps> = (
       isBullish: d.latestSkew >= 1
     }));
 
-    const allBullish = latestSkews.every(s => s.isBullish);
-    const allBearish = latestSkews.every(s => !s.isBullish);
+    const coreSkews = latestSkews.filter(s => coreTimeframes.includes(s.timeframe));
+    const allBullish = coreSkews.every(s => s.isBullish);
+    const allBearish = coreSkews.every(s => !s.isBullish);
     const isConsistent = allBullish || allBearish;
 
     return {
       isConsistent,
       direction: allBullish ? 'bullish' : allBearish ? 'bearish' : 'mixed',
-      details: latestSkews
+      details: latestSkews,
+      coreDetails: coreSkews
     };
   }, [data]);
 
@@ -110,9 +113,9 @@ export const MultiTimeframeSkewChart: React.FC<MultiTimeframeSkewChartProps> = (
         <span className="font-medium">
           {consistencyInfo.isConsistent
             ? consistencyInfo.direction === 'bullish'
-              ? '周期一致看多 - 所有周期偏度比 ≥ 1'
-              : '周期一致看空 - 所有周期偏度比 < 1'
-            : '周期分歧 - 不同周期偏度比方向不一致'
+              ? '中长周期一致看多 - 60m/日线/周线偏度比均 ≥ 1（15m仅作参考）'
+              : '中长周期一致看空 - 60m/日线/周线偏度比均 < 1（15m仅作参考）'
+            : '中长周期分歧 - 60m/日线/周线偏度比方向不一致（15m仅作参考）'
           }
         </span>
       </div>
