@@ -391,7 +391,7 @@ export function analyzeVolatilitySkew(
   const historicalVolumeValues: number[] = [];
 
   const minHistSamples = 3;
-  const maxStepSize = Math.floor(window / 2);
+  const maxStepSize = Math.max(Math.floor(window / 2), 10);
 
   if (historicalReturns.length >= window) {
     const maxPossibleSamples = Math.floor((historicalReturns.length - window) / maxStepSize) + 1;
@@ -410,6 +410,26 @@ export function analyzeVolatilitySkew(
       historicalVolValues.push(stdDev(chunkReturns));
 
       const chunkData = data.slice(i, i + window);
+      historicalVolumeValues.push(mean(chunkData.map(d => d.volume)));
+    }
+  } else if (historicalReturns.length >= 20) {
+    const subWindow = Math.max(Math.floor(historicalReturns.length * 0.6), 15);
+    const maxPossibleSubSamples = Math.floor((historicalReturns.length - subWindow) / Math.max(Math.floor(subWindow / 2), 5)) + 1;
+
+    let subStep = Math.max(Math.floor(subWindow / 2), 5);
+    if (maxPossibleSubSamples < minHistSamples) {
+      subStep = Math.max(Math.floor((historicalReturns.length - subWindow) / (minHistSamples - 1)), 1);
+    }
+
+    for (let i = 0; i <= historicalReturns.length - subWindow; i += subStep) {
+      const chunkReturns = historicalReturns.slice(i, i + subWindow);
+      const upReturns = chunkReturns.filter(r => r > 0);
+      const downReturns = chunkReturns.filter(r => r < 0);
+      historicalUpVolValues.push(stdDev(upReturns));
+      historicalDownVolValues.push(stdDev(downReturns));
+      historicalVolValues.push(stdDev(chunkReturns));
+
+      const chunkData = data.slice(i, i + subWindow);
       historicalVolumeValues.push(mean(chunkData.map(d => d.volume)));
     }
   }
