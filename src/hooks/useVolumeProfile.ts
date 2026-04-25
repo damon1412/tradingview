@@ -79,15 +79,13 @@ export function useVolumeProfile(
             daySet.add(key);
           });
           
-          // 计算选定范围内的交易日数量（用selectedData的实际条数作为基准）
-          const tradingDaysInRange = selectedData.length;
+          const timeSpanDays = (selectedData[selectedData.length - 1].timestamp - selectedData[0].timestamp) / (1000 * 60 * 60 * 24);
+          const expectedTradingDays = Math.max(Math.ceil(timeSpanDays * 5 / 7), 1);
           
-          // 分钟数据实际覆盖的交易日数量
           const coveredDays = daySet.size;
           
-          // 覆盖率 = 覆盖的交易日 / 选定范围的交易日
           return {
-            passed: tradingDaysInRange > 0 && coveredDays >= tradingDaysInRange * minCoverage,
+            passed: coveredDays >= expectedTradingDays * minCoverage,
             availableDays: coveredDays,
             filteredDays: coveredDays
           };

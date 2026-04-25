@@ -89,10 +89,11 @@ export async function getKlineData(
   type: string
 ): Promise<{ data: KlineResponse | null; error?: ApiError }> {
   try {
-    const codeNum = code.replace(/^(sh|sz)/, '');
     const isIndex = isIndexCode(code);
-    const apiType = isIndex ? 'index' : 'kline';
-    const response = await fetch(`/api/${apiType}?code=${code}&type=${type}`);
+    const url = isIndex
+      ? `/api/index?code=${code}&type=${type}&limit=800`
+      : `/api/kline?code=${code}&type=${type}`;
+    const response = await fetch(url);
     if (!response.ok) throw response;
     const result = await response.json();
     if (result.code === 0) {
@@ -164,16 +165,8 @@ export async function get1MinuteDataForVolumeProfile(
   endDate: string
 ): Promise<{ data: StockData[]; error?: ApiError }> {
   try {
-    const codeNum = code.replace(/^(sh|sz)/, '');
-    const isIndex = isIndexCode(code);
-    const apiType = isIndex ? 'index' : 'kline-history';
-    
-    let url;
-    if (isIndex) {
-      url = `/api/${apiType}?code=${code}&type=minute1&start_date=${startDate}&end_date=${endDate}&limit=20000`;
-    } else {
-      url = `/api/${apiType}?code=${code}&type=minute1&start_date=${startDate}&end_date=${endDate}&limit=800`;
-    }
+    const limit = isIndexCode(code) ? 20000 : 800;
+    const url = `/api/kline-history?code=${code}&type=minute1&start_date=${startDate}&end_date=${endDate}&limit=${limit}`;
     
     const response = await fetch(url);
     if (!response.ok) throw response;

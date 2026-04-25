@@ -69,8 +69,17 @@ export function calculateVolumeProfile(
     return { profile: [], minPrice: 0, maxPrice: 0 };
   }
 
-  const minPrice = Math.min(...data.map(d => d.low));
-  const maxPrice = Math.max(...data.map(d => d.high));
+  const validData = data.filter(d =>
+    d.close > 0 && d.high > 0 && d.low > 0 && d.open > 0 &&
+    d.volume >= 0 && d.high >= d.low
+  );
+
+  if (validData.length === 0) {
+    return { profile: [], minPrice: 0, maxPrice: 0 };
+  }
+
+  const minPrice = Math.min(...validData.map(d => d.low));
+  const maxPrice = Math.max(...validData.map(d => d.high));
   const priceRange = maxPrice - minPrice;
   const levelSize = priceRange / priceLevels;
 
@@ -78,7 +87,7 @@ export function calculateVolumeProfile(
 
   for (let i = 0; i < priceLevels; i++) {
     const levelPrice = minPrice + i * levelSize + levelSize / 2;
-    const levelVolume = data.reduce((sum, candle) => {
+    const levelVolume = validData.reduce((sum, candle) => {
       const candleRange = candle.high - candle.low;
       const overlapLow = Math.max(candle.low, minPrice + i * levelSize);
       const overlapHigh = Math.min(candle.high, minPrice + (i + 1) * levelSize);
@@ -360,8 +369,13 @@ export function analyzeVolatilitySkew(
 
   const returns: number[] = [];
   for (let i = 1; i < data.length; i++) {
-    const ret = (data[i].close - data[i - 1].close) / data[i - 1].close;
-    returns.push(ret);
+    const prevClose = data[i - 1].close;
+    const currClose = data[i].close;
+    if (prevClose <= 0 || currClose <= 0) continue;
+    const ret = (currClose - prevClose) / prevClose;
+    if (!isNaN(ret) && isFinite(ret)) {
+      returns.push(ret);
+    }
   }
 
   const effectiveWindow = Math.min(window, Math.max(Math.floor(returns.length * 0.4), 20));

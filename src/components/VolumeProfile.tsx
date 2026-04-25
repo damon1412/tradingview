@@ -44,8 +44,13 @@ export const VolumeProfile: React.FC<VolumeProfileProps> = ({
 
     ctx.clearRect(0, 0, width, height);
 
-    const barHeight = (maxPrice - minPrice) / profile.length;
-    const barHeightPx = Math.abs(priceToY(minPrice + barHeight) - priceToY(minPrice));
+    if (profile.length === 0) return;
+
+    const profileMinPrice = profile[0].price;
+    const profileMaxPrice = profile[profile.length - 1].price;
+    const priceSpan = profileMaxPrice - profileMinPrice;
+    const barHeight = priceSpan > 0 ? priceSpan / profile.length : 0.01;
+    const barHeightPx = Math.abs(priceToY(profileMinPrice + barHeight) - priceToY(profileMinPrice));
 
     profile.forEach((level) => {
       const y = priceToY(level.price);
