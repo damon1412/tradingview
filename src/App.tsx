@@ -3,6 +3,7 @@ import { CandlestickChart } from './components/CandlestickChart';
 import { VolumeProfile } from './components/VolumeProfile';
 import { IndicatorChart } from './components/IndicatorChart';
 import { StatsPanel } from './components/StatsPanel';
+import { SignalPanel } from './components/SignalPanel';
 import { TimeFrameSelector } from './components/TimeFrameSelector';
 import { TradeAnalysisPanel } from './components/TradeAnalysisPanel';
 import { Toast, useToast } from './components/Toast';
@@ -14,8 +15,9 @@ import { clearAllAnalysisCache, getPinnedProfiles, savePinnedProfiles, addPinned
 import { useStockData } from './hooks/useStockData';
 import { useSearch } from './hooks/useSearch';
 import { useVolumeProfile } from './hooks/useVolumeProfile';
-import { getTimeFrameLabel } from './utils/stockData';
-import type { SelectedRange, VolumeProfileStats, TimeFrame, PinnedProfile, WatchlistItem, WatchlistGroup } from './types/stock';
+import { getTimeFrameLabel, analyzeVolatilitySkew, generateTradingSignal } from './utils/stockData';
+import { analyzeAllPeriods } from './services/stockApi';
+import type { SelectedRange, VolumeProfileStats, TimeFrame, PinnedProfile, WatchlistItem, WatchlistGroup, TradingSignalResult, VolatilitySkewAnalysis } from './types/stock';
 
 const CHART_HEIGHT = 360;
 const VOLUME_HEIGHT = 100;
@@ -75,6 +77,9 @@ const App: React.FC<AppProps> = ({ initialStockCode, initialStockName }) => {
   const [showGroupManager, setShowGroupManager] = useState(false);
   const [showCacheManager, setShowCacheManager] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const [signalResult, setSignalResult] = useState<TradingSignalResult | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   useEffect(() => {
     const updateWidth = () => {
@@ -282,6 +287,42 @@ const App: React.FC<AppProps> = ({ initialStockCode, initialStockName }) => {
     };
   }, [closeSearchDropdown]);
 
+  useEffect(() => {
+    if (displayData.length < 30) {
+      setSignalResult(null);
+      return;
+    }
+
+    setIsAnalyzing(true);
+
+    const analysis = analyzeVolatilitySkew(displayData, 60, 0.05);
+    if (!analysis) {
+      setSignalResult(null);
+      setIsAnalyzing(false);
+      return;
+    }
+
+    analyzeAllPeriods(stockCode).then((multiResult) => {
+      let enrichedAnalysis: VolatilitySkewAnalysis = { ...analysis };
+      if (multiResult.data) {
+        enrichedAnalysis = {
+          ...analysis,
+          periodConsistency: multiResult.data.consistency || undefined,
+          bullishPeriods: multiResult.data.bullishCount,
+          totalPeriods: multiResult.data.totalCount
+        };
+      }
+
+      const signal = generateTradingSignal(enrichedAnalysis);
+      setSignalResult(signal);
+      setIsAnalyzing(false);
+    }).catch(() => {
+      const signal = generateTradingSignal(analysis);
+      setSignalResult(signal);
+      setIsAnalyzing(false);
+    });
+  }, [displayData, stockCode]);
+
   const chartWidth = Math.max(0, containerWidth - PROFILE_WIDTH - 32);
 
   return (
@@ -395,6 +436,10 @@ const App: React.FC<AppProps> = ({ initialStockCode, initialStockName }) => {
           isMobile={false}
           visible={true}
         />
+
+        <div className="grid grid-cols-1 gap-6 mb-6 mt-4">
+          <SignalPanel signalResult={signalResult} isLoading={isAnalyzing} />
+        </div>
 
         <div className="grid grid-cols-1 gap-6 mb-6 mt-4">
           <TradeAnalysisPanel stockCode={stockCode} pinnedProfiles={pinnedProfiles} />

@@ -107,3 +107,60 @@ export interface GridResult {
   totalLevels: number;
   gridType: string;
 }
+
+export type VolatilityLevel = '极度压缩' | '低于均值' | '正常水平' | '偏高' | '极端放大';
+
+export type SkewDirection = '上行主导' | '下行主导' | '多空平衡';
+
+export type SkewDeviationLevel = '极度偏高' | '显著偏高' | '正常范围' | '显著偏低' | '极度偏低';
+
+export type SkewDriverType = '多头进攻型' | '波动放大型' | '波动收缩型' | '空头进攻型' | '无明显驱动特征';
+
+export type PeriodConsistency = '完全一致' | '基本一致' | '中等分歧' | '严重分歧';
+
+export type TradingSignal = '强势做多' | '偏多，可持仓' | '中性，观望' | '偏空，减仓' | '强势做空';
+
+export type VolumeLevel = '异常放量' | '显著放量' | '正常' | '缩量';
+
+export type VolumeConfirmation = '强确认' | '正常蓄势' | '异常放量待变盘' | '方向不明' | '弱确认';
+
+export interface VolatilitySkewAnalysis {
+  currentVolatility: number;
+  meanVolatility: number;
+  volRatio: number;
+  volLevel: VolatilityLevel;
+
+  currentSkew: number;
+  skewDirection: SkewDirection;
+
+  meanSkew: number;
+  skewDeviation: number;
+  skewDeviationLevel: SkewDeviationLevel;
+
+  upVolDeviation: number;
+  downVolDeviation: number;
+  driverType: SkewDriverType;
+
+  currentVolume: number;
+  meanVolume: number;
+  volumeRatio: number;
+  volumeLevel: VolumeLevel;
+  volumeSkew: number;
+  volumeConfirmation: VolumeConfirmation;
+
+  periodConsistency?: PeriodConsistency;
+  bullishPeriods?: number;
+  totalPeriods?: number;
+
+  isAnomaly: boolean;
+  anomalyReason?: string;
+}
+
+export interface TradingSignalResult {
+  score: number;
+  signal: TradingSignal;
+  originalSignal?: TradingSignal;
+  coverageReason?: string;
+  analysis: VolatilitySkewAnalysis;
+  timestamp: number;
+}

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
-import type { StockData, VolatilityData, VolatilityIndicator, GridResult } from '../types/stock';
+import type { StockData, VolatilityData, VolatilityIndicator, GridResult, TradingSignal } from '../types/stock';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
@@ -11,6 +11,7 @@ interface VolatilityChartProps {
   indicator: VolatilityIndicator;
   showBollingerBands: boolean;
   gridResult?: GridResult | null;
+  signal?: TradingSignal | null;
 }
 
 const INDICATOR_CONFIG: Record<VolatilityIndicator, { label: string; color: string; key: keyof VolatilityData; unit: string }> = {
@@ -26,7 +27,8 @@ export const VolatilityChart: React.FC<VolatilityChartProps> = ({
   height,
   indicator,
   showBollingerBands,
-  gridResult
+  gridResult,
+  signal
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -473,7 +475,30 @@ export const VolatilityChart: React.FC<VolatilityChartProps> = ({
         ctx.fillText(`偏度: ${vol.volSkew.toFixed(3)}`, tooltipX + 8, skewY);
       }
     }
-  }, [stockData, volatilityData, width, height, priceToY, indicatorToY, indexToX, priceRange, indicatorRange, candleWidth, candleSpacing, chartWidth, chartHeight, margin, hoverIndex, priceChartHeight, volChartHeight, dividerHeight, indicator, indicatorConfig, showBollingerBands, gridResult]);
+
+    if (signal && stockData.length > 0) {
+      const x = indexToX(stockData.length - 1);
+      const y = priceToY(stockData[stockData.length - 1].high) - 20;
+
+      const signalColors: Record<string, string> = {
+        '强势做多': '#10b981',
+        '偏多，可持仓': '#22c55e',
+        '中性，观望': '#94a3b8',
+        '偏空，减仓': '#f97316',
+        '强势做空': '#ef4444'
+      };
+
+      ctx.fillStyle = signalColors[signal] || '#94a3b8';
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 8px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('S', x, y + 3);
+    }
+  }, [stockData, volatilityData, width, height, priceToY, indicatorToY, indexToX, priceRange, indicatorRange, candleWidth, candleSpacing, chartWidth, chartHeight, margin, hoverIndex, priceChartHeight, volChartHeight, dividerHeight, indicator, indicatorConfig, showBollingerBands, gridResult, signal]);
 
   const handleMouseMove = (e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect();

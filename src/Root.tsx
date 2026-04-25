@@ -3,11 +3,12 @@ import App from './App';
 import { VolatilityPage } from './components/VolatilityPage';
 import { SkewScannerPage } from './components/SkewScannerPage';
 import { SectorSkewScannerPage } from './components/SectorSkewScannerPage';
+import { SignalScannerPage } from './components/SignalScannerPage';
 import { IndexListManager } from './components/IndexListManager';
 import { NavigationProvider } from './NavigationContext';
 
 const Root: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'volume' | 'volatility' | 'scanner' | 'sector-scanner' | 'index-manager'>('volume');
+  const [activeTab, setActiveTab] = useState<'volume' | 'volatility' | 'scanner' | 'signal-scanner' | 'sector-scanner' | 'index-manager'>('volume');
   const [navTarget, setNavTarget] = useState<{ code: string; name: string; timestamp: number } | null>(null);
 
   const handleNavigate = useCallback((tab: 'volume' | 'volatility', code: string, name: string) => {
@@ -55,6 +56,17 @@ const Root: React.FC = () => {
                 个股偏度扫描
               </button>
               <button
+                onClick={() => { setNavTarget(null); setActiveTab('signal-scanner'); }}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'signal-scanner'
+                    ? 'border-cyan-500 text-cyan-400'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <i className="fas fa-chart-line mr-2"></i>
+                信号扫描器
+              </button>
+              <button
                 onClick={() => { setNavTarget(null); setActiveTab('sector-scanner'); }}
                 className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === 'sector-scanner'
@@ -85,6 +97,8 @@ const Root: React.FC = () => {
           <VolatilityPage key={navTarget?.timestamp || 'default'} initialStockCode={navTarget?.code} initialStockName={navTarget?.name} />
         ) : activeTab === 'scanner' ? (
           <SkewScannerPage />
+        ) : activeTab === 'signal-scanner' ? (
+          <SignalScannerPage />
         ) : activeTab === 'sector-scanner' ? (
           <SectorSkewScannerPage />
         ) : (

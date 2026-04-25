@@ -1,4 +1,4 @@
-import type { StockData, TimeFrame, VolatilityData, GridConfig, GridResult } from '../types/stock';
+import type { StockData, TimeFrame, VolatilityData, GridConfig, GridResult, VolatilitySkewAnalysis, TradingSignalResult, TradingSignal, VolatilityLevel, SkewDirection, SkewDeviationLevel, SkewDriverType, VolumeLevel, VolumeConfirmation, PeriodConsistency } from '../types/stock';
 
 export function generateMockStockData(timeFrame: TimeFrame = '1d', count: number = 120): StockData[] {
   const data: StockData[] = [];
@@ -330,4 +330,285 @@ export function calculateGrid(config: GridConfig, currentPrice: number, volatili
     totalLevels: grids.length,
     gridType
   };
+}
+
+function stdDev(values: number[]): number {
+  if (values.length < 2) return 0;
+  const m = values.reduce((a, b) => a + b, 0) / values.length;
+  const variance = values.reduce((sum, v) => sum + (v - m) ** 2, 0) / (values.length - 1);
+  return Math.sqrt(variance);
+}
+
+function mean(values: number[]): number {
+  if (values.length === 0) return 0;
+  return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+export function analyzeVolatilitySkew(
+  data: StockData[],
+  window: number = 60,
+  deadZone: number = 0.05
+): VolatilitySkewAnalysis | null {
+  if (data.length < window * 0.5) {
+    return null;
+  }
+
+  const returns: number[] = [];
+  for (let i = 1; i < data.length; i++) {
+    const ret = (data[i].close - data[i - 1].close) / data[i - 1].close;
+    returns.push(ret);
+  }
+
+  if (returns.length < window * 0.5) {
+    return null;
+  }
+
+  const currentReturns = returns.slice(-window);
+  const historicalReturns = returns.slice(0, -window);
+
+  const currentUpReturns = currentReturns.filter(r => r > 0);
+  const currentDownReturns = currentReturns.filter(r => r < 0);
+  const currentUpVol = stdDev(currentUpReturns);
+  const currentDownVol = stdDev(currentDownReturns);
+  const currentVol = stdDev(currentReturns);
+  const currentSkew = currentDownVol > 0 ? currentUpVol / currentDownVol : 1;
+
+  const currentWindowData = data.slice(-window);
+  const currentVolume = mean(currentWindowData.map(d => d.volume));
+  const currentUpVolumeAvg = mean(currentWindowData.filter(d => d.close > d.open).map(d => d.volume));
+  const currentDownVolumeAvg = mean(currentWindowData.filter(d => d.close < d.open).map(d => d.volume));
+
+  const historicalUpVolValues: number[] = [];
+  const historicalDownVolValues: number[] = [];
+  const historicalVolValues: number[] = [];
+  const historicalVolumeValues: number[] = [];
+
+  for (let i = 0; i <= historicalReturns.length - window; i++) {
+    const chunkReturns = historicalReturns.slice(i, i + window);
+    const upReturns = chunkReturns.filter(r => r > 0);
+    const downReturns = chunkReturns.filter(r => r < 0);
+    historicalUpVolValues.push(stdDev(upReturns));
+    historicalDownVolValues.push(stdDev(downReturns));
+    historicalVolValues.push(stdDev(chunkReturns));
+
+    const chunkData = data.slice(i, i + window);
+    historicalVolumeValues.push(mean(chunkData.map(d => d.volume)));
+  }
+
+  let meanUpVol = mean(historicalUpVolValues);
+  let meanDownVol = mean(historicalDownVolValues);
+  let meanVol = mean(historicalVolValues);
+  const meanVolume = historicalVolumeValues.length > 0 ? mean(historicalVolumeValues) : currentVolume;
+
+  meanUpVol = Math.max(meanUpVol, 0.001);
+  meanDownVol = Math.max(meanDownVol, 0.001);
+  meanVol = Math.max(meanVol, 0.001);
+
+  let meanSkew = meanDownVol > 0 ? meanUpVol / meanDownVol : 1;
+  meanSkew = Math.max(meanSkew, 0.001);
+
+  const volRatio = currentVol / meanVol;
+  const skewDeviation = (currentSkew - meanSkew) / meanSkew;
+  const upVolDeviation = (currentUpVol - meanUpVol) / meanUpVol;
+  const downVolDeviation = (currentDownVol - meanDownVol) / meanDownVol;
+
+  let volLevel: VolatilityLevel;
+  if (volRatio < 0.80) volLevel = '极度压缩';
+  else if (volRatio < 0.95) volLevel = '低于均值';
+  else if (volRatio <= 1.05) volLevel = '正常水平';
+  else if (volRatio <= 1.20) volLevel = '偏高';
+  else volLevel = '极端放大';
+
+  let skewDirection: SkewDirection;
+  if (currentSkew > 1.0) skewDirection = '上行主导';
+  else if (currentSkew < 1.0) skewDirection = '下行主导';
+  else skewDirection = '多空平衡';
+
+  let skewDeviationLevel: SkewDeviationLevel;
+  if (skewDeviation > 0.50) skewDeviationLevel = '极度偏高';
+  else if (skewDeviation > 0.20) skewDeviationLevel = '显著偏高';
+  else if (skewDeviation >= -0.20) skewDeviationLevel = '正常范围';
+  else if (skewDeviation >= -0.50) skewDeviationLevel = '显著偏低';
+  else skewDeviationLevel = '极度偏低';
+
+  let driverType: SkewDriverType;
+  if (upVolDeviation > deadZone && downVolDeviation < -deadZone) {
+    driverType = '多头进攻型';
+  } else if (upVolDeviation < -deadZone && downVolDeviation > deadZone) {
+    driverType = '空头进攻型';
+  } else if (upVolDeviation > deadZone && downVolDeviation > deadZone) {
+    driverType = '波动放大型';
+  } else if (upVolDeviation < -deadZone && downVolDeviation < -deadZone) {
+    driverType = '波动收缩型';
+  } else {
+    driverType = '无明显驱动特征';
+  }
+
+  const volumeRatio = currentVolume / Math.max(meanVolume, 0.001);
+  const volumeSkew = currentUpVolumeAvg / Math.max(currentDownVolumeAvg, 0.001);
+
+  let volumeLevel: VolumeLevel;
+  if (volumeRatio > 1.5) volumeLevel = '异常放量';
+  else if (volumeRatio > 1.2) volumeLevel = '显著放量';
+  else if (volumeRatio >= 0.8) volumeLevel = '正常';
+  else volumeLevel = '缩量';
+
+  let volumeConfirmation: VolumeConfirmation;
+  const isHighVolume = volumeRatio > 1.2;
+  const isLowVolume = volumeRatio < 0.8;
+  const isUpVolumeDominant = volumeSkew > 1.0;
+  const isDownVolumeDominant = volumeSkew < 1.0;
+
+  if (driverType === '多头进攻型') {
+    if (isHighVolume && isUpVolumeDominant) {
+      volumeConfirmation = '强确认';
+    } else if (isLowVolume) {
+      volumeConfirmation = '弱确认';
+    } else {
+      volumeConfirmation = '正常蓄势';
+    }
+  } else if (driverType === '空头进攻型') {
+    if (isHighVolume && isDownVolumeDominant) {
+      volumeConfirmation = '强确认';
+    } else if (isLowVolume) {
+      volumeConfirmation = '弱确认';
+    } else {
+      volumeConfirmation = '正常蓄势';
+    }
+  } else if (driverType === '波动收缩型') {
+    if (isLowVolume) {
+      volumeConfirmation = '正常蓄势';
+    } else {
+      volumeConfirmation = '异常放量待变盘';
+    }
+  } else if (driverType === '波动放大型') {
+    volumeConfirmation = '方向不明';
+  } else {
+    volumeConfirmation = '正常蓄势';
+  }
+
+  const isAnomaly = currentSkew > 5 || currentSkew < 0.2;
+  const anomalyReason = isAnomaly ? '偏度比超出正常范围，可能为数据异常或极端行情，需人工复核' : undefined;
+
+  return {
+    currentVolatility: currentVol,
+    meanVolatility: meanVol,
+    volRatio,
+    volLevel,
+    currentSkew,
+    skewDirection,
+    meanSkew,
+    skewDeviation,
+    skewDeviationLevel,
+    upVolDeviation,
+    downVolDeviation,
+    driverType,
+    currentVolume,
+    meanVolume,
+    volumeRatio,
+    volumeLevel,
+    volumeSkew,
+    volumeConfirmation,
+    isAnomaly,
+    anomalyReason
+  };
+}
+
+export function generateTradingSignal(
+  analysis: VolatilitySkewAnalysis
+): TradingSignalResult {
+  let score = 0;
+
+  if (analysis.volRatio < 0.85) score += 1;
+  if (analysis.volRatio > 1.20) score -= 1;
+
+  if (analysis.currentSkew > 1.0) score += 1;
+  if (analysis.currentSkew < 1.0) score -= 1;
+
+  if (analysis.skewDeviation > 0.3) score += 1;
+  if (analysis.skewDeviation < -0.3) score -= 1;
+
+  if (analysis.driverType === '多头进攻型') score += 2;
+  if (analysis.driverType === '空头进攻型') score -= 2;
+
+  if (analysis.periodConsistency === '完全一致') score += 2;
+  if (analysis.periodConsistency === '严重分歧') score -= 2;
+
+  const thresholds: [number, TradingSignal][] = [
+    [3, '强势做多'],
+    [1, '偏多，可持仓'],
+    [0, '中性，观望'],
+    [-2, '偏空，减仓'],
+    [-3, '强势做空'],
+  ];
+
+  let signal = thresholds.find(([min]) => score >= min)?.[1] ?? '中性，观望';
+
+  let originalSignal: TradingSignal | undefined;
+  let coverageReason: string | undefined;
+
+  if (analysis.periodConsistency === '严重分歧') {
+    if (signal === '强势做多') {
+      originalSignal = signal;
+      signal = '偏多，可持仓';
+      coverageReason = '多周期严重分歧，降级处理';
+    } else if (signal === '强势做空') {
+      originalSignal = signal;
+      signal = '偏空，减仓';
+      coverageReason = '多周期严重分歧，降级处理';
+    }
+  }
+
+  if (analysis.isAnomaly) {
+    coverageReason = (coverageReason ? coverageReason + '; ' : '') + '偏度比异常值，需人工复核';
+  }
+
+  if (analysis.driverType === '多头进攻型' && analysis.volumeRatio < 0.8) {
+    coverageReason = (coverageReason ? coverageReason + '; ' : '') + '缩量上涨，警惕假突破';
+  }
+  if (analysis.driverType === '空头进攻型' && analysis.volumeRatio < 0.8) {
+    coverageReason = (coverageReason ? coverageReason + '; ' : '') + '缩量下跌，恐慌尚未完全释放';
+  }
+  if (analysis.driverType === '波动收缩型' && analysis.volumeRatio > 1.3) {
+    coverageReason = (coverageReason ? coverageReason + '; ' : '') + '缩量后异常放量，可能即将变盘';
+  }
+
+  return {
+    score,
+    signal,
+    originalSignal,
+    coverageReason,
+    analysis,
+    timestamp: Date.now()
+  };
+}
+
+export function analyzeMultiPeriodConsistency(
+  periodAnalyses: Record<string, VolatilitySkewAnalysis>
+): { consistency: PeriodConsistency; bullishCount: number; totalCount: number } | null {
+  const keys = Object.keys(periodAnalyses);
+  if (keys.length === 0) return null;
+
+  let bullishCount = 0;
+  for (const key of keys) {
+    const analysis = periodAnalyses[key];
+    if (analysis.currentSkew > 1.0) {
+      bullishCount++;
+    }
+  }
+
+  const total = keys.length;
+  let consistency: PeriodConsistency;
+
+  if (bullishCount === total) {
+    consistency = '完全一致';
+  } else if (bullishCount >= total - 1) {
+    consistency = '基本一致';
+  } else if (bullishCount >= total / 2) {
+    consistency = '中等分歧';
+  } else {
+    consistency = '严重分歧';
+  }
+
+  return { consistency, bullishCount, totalCount: total };
 }

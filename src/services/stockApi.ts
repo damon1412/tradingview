@@ -1,5 +1,7 @@
 import type { StockData } from '../types/stock';
+import type { VolatilitySkewAnalysis, PeriodConsistency } from '../types/stock';
 import { LOCAL_INDEX_LIST } from '../config/indices';
+import { analyzeVolatilitySkew, analyzeMultiPeriodConsistency } from '../utils/stockData';
 
 const API_BASE_URL = '';
 
@@ -407,4 +409,46 @@ export async function getSinaTickData(
     console.error('获取新浪逐笔数据失败:', error);
     return { data: null, error: { type: 'network', message: '获取新浪数据失败' } };
   }
+}
+
+const PERIOD_CONFIG: Record<string, { window: number; label: string; apiType: string }> = {
+  '15m': { window: 120, label: '15分钟', apiType: 'minute15' },
+  '60m': { window: 60, label: '60分钟', apiType: 'hour' },
+  'day': { window: 60, label: '日线', apiType: 'day' },
+  'week': { window: 20, label: '周线', apiType: 'week' },
+} as const;
+
+export interface MultiPeriodSkewResult {
+  analyses: Record<string, VolatilitySkewAnalysis>;
+  consistency: PeriodConsistency | null;
+  bullishCount: number;
+  totalCount: number;
+}
+
+export async function analyzeAllPeriods(code: string): Promise<{ data: MultiPeriodSkewResult | null; error?: ApiError }> {
+  const results: Record<string, VolatilitySkewAnalysis> = {};
+
+  for (const [period, config] of Object.entries(PERIOD_CONFIG)) {
+    const { data: klineData, error } = await getKlineData(code, config.apiType);
+    if (error || !klineData) continue;
+    const stockData = convertKlineToStockData(klineData.List);
+    const analysis = analyzeVolatilitySkew(stockData, config.window);
+    if (analysis !== null) {
+      results[period] = analysis;
+    }
+  }
+
+  const consistencyResult = analyzeMultiPeriodConsistency(results);
+  if (!consistencyResult) {
+    return { data: null };
+  }
+
+  return {
+    data: {
+      analyses: results,
+      consistency: consistencyResult.consistency,
+      bullishCount: consistencyResult.bullishCount,
+      totalCount: consistencyResult.totalCount
+    }
+  };
 }
