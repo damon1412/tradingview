@@ -50,7 +50,10 @@ export const SignalPanel: React.FC<SignalPanelProps> = ({ signalResult, isLoadin
   const signalColorClass = SIGNAL_COLORS[signal];
   const scoreColorClass = score > 0 ? SCORE_COLORS.positive : score < 0 ? SCORE_COLORS.negative : SCORE_COLORS.neutral;
 
-  const formatPercent = (val: number) => `${val >= 0 ? '+' : ''}${(val * 100).toFixed(1)}%`;
+  const formatPercent = (val: number) => {
+    if (isNaN(val)) return 'N/A';
+    return `${val >= 0 ? '+' : ''}${(val * 100).toFixed(1)}%`;
+  };
 
   return (
     <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">

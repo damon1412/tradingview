@@ -196,8 +196,13 @@ export function calculateVolatility(
 
   const returns: number[] = [];
   for (let i = 1; i < data.length; i++) {
-    const ret = (data[i].close - data[i - 1].close) / data[i - 1].close;
-    returns.push(ret);
+    const prevClose = data[i - 1].close;
+    const currClose = data[i].close;
+    if (prevClose <= 0 || currClose <= 0) continue;
+    const ret = (currClose - prevClose) / prevClose;
+    if (!isNaN(ret) && isFinite(ret)) {
+      returns.push(ret);
+    }
   }
 
   const trueRanges: number[] = [];
@@ -359,18 +364,20 @@ export function analyzeVolatilitySkew(
     returns.push(ret);
   }
 
-  if (returns.length < window * 0.5) {
+  const effectiveWindow = Math.min(window, Math.max(Math.floor(returns.length * 0.4), 20));
+
+  if (returns.length < effectiveWindow * 1.5) {
     return null;
   }
 
-  const currentReturns = returns.slice(-window);
-  const historicalReturns = returns.slice(0, -window);
+  const currentReturns = returns.slice(-effectiveWindow);
+  const historicalReturns = returns.slice(0, -effectiveWindow);
 
   const currentUpReturns = currentReturns.filter(r => r > 0);
   const currentDownReturns = currentReturns.filter(r => r < 0);
-  const currentUpVol = stdDev(currentUpReturns);
-  const currentDownVol = stdDev(currentDownReturns);
-  const currentVol = stdDev(currentReturns);
+  let currentUpVol = stdDev(currentUpReturns);
+  let currentDownVol = stdDev(currentDownReturns);
+  let currentVol = stdDev(currentReturns);
   const currentSkew = currentDownVol > 0 ? currentUpVol / currentDownVol : 1;
 
   const currentWindowData = data.slice(-window);
@@ -383,26 +390,58 @@ export function analyzeVolatilitySkew(
   const historicalVolValues: number[] = [];
   const historicalVolumeValues: number[] = [];
 
-  for (let i = 0; i <= historicalReturns.length - window; i++) {
-    const chunkReturns = historicalReturns.slice(i, i + window);
-    const upReturns = chunkReturns.filter(r => r > 0);
-    const downReturns = chunkReturns.filter(r => r < 0);
-    historicalUpVolValues.push(stdDev(upReturns));
-    historicalDownVolValues.push(stdDev(downReturns));
-    historicalVolValues.push(stdDev(chunkReturns));
+  const minHistSamples = 3;
+  const maxStepSize = Math.floor(window / 2);
 
-    const chunkData = data.slice(i, i + window);
-    historicalVolumeValues.push(mean(chunkData.map(d => d.volume)));
+  if (historicalReturns.length >= window) {
+    const maxPossibleSamples = Math.floor((historicalReturns.length - window) / maxStepSize) + 1;
+    let stepSize = maxStepSize;
+
+    if (maxPossibleSamples < minHistSamples) {
+      stepSize = Math.max(Math.floor((historicalReturns.length - window) / (minHistSamples - 1)), 1);
+    }
+
+    for (let i = 0; i <= historicalReturns.length - window; i += stepSize) {
+      const chunkReturns = historicalReturns.slice(i, i + window);
+      const upReturns = chunkReturns.filter(r => r > 0);
+      const downReturns = chunkReturns.filter(r => r < 0);
+      historicalUpVolValues.push(stdDev(upReturns));
+      historicalDownVolValues.push(stdDev(downReturns));
+      historicalVolValues.push(stdDev(chunkReturns));
+
+      const chunkData = data.slice(i, i + window);
+      historicalVolumeValues.push(mean(chunkData.map(d => d.volume)));
+    }
+  }
+
+  if (historicalVolValues.length === 0) {
+    const halfWindow = Math.max(Math.floor(window / 2), 10);
+    for (let i = 0; i <= currentReturns.length - halfWindow; i += halfWindow) {
+      const chunkReturns = currentReturns.slice(i, i + halfWindow);
+      const upReturns = chunkReturns.filter(r => r > 0);
+      const downReturns = chunkReturns.filter(r => r < 0);
+      historicalUpVolValues.push(stdDev(upReturns));
+      historicalDownVolValues.push(stdDev(downReturns));
+      historicalVolValues.push(stdDev(chunkReturns));
+
+      const chunkData = data.slice(data.length - window + i, data.length - window + i + halfWindow);
+      historicalVolumeValues.push(mean(chunkData.map(d => d.volume)));
+    }
   }
 
   let meanUpVol = mean(historicalUpVolValues);
   let meanDownVol = mean(historicalDownVolValues);
   let meanVol = mean(historicalVolValues);
-  const meanVolume = historicalVolumeValues.length > 0 ? mean(historicalVolumeValues) : currentVolume;
+  let meanVolume = historicalVolumeValues.length > 0 ? mean(historicalVolumeValues) : currentVolume;
 
-  meanUpVol = Math.max(meanUpVol, 0.001);
-  meanDownVol = Math.max(meanDownVol, 0.001);
-  meanVol = Math.max(meanVol, 0.001);
+  if (isNaN(meanUpVol) || meanUpVol <= 0) meanUpVol = 0.001;
+  if (isNaN(meanDownVol) || meanDownVol <= 0) meanDownVol = 0.001;
+  if (isNaN(meanVol) || meanVol <= 0) meanVol = 0.001;
+  if (isNaN(meanVolume) || meanVolume <= 0) meanVolume = currentVolume;
+
+  if (isNaN(currentUpVol) || currentUpVol < 0) { currentUpVol = 0; }
+  if (isNaN(currentDownVol) || currentDownVol < 0) { currentDownVol = 0; }
+  if (isNaN(currentVol) || currentVol < 0) { currentVol = 0; }
 
   let meanSkew = meanDownVol > 0 ? meanUpVol / meanDownVol : 1;
   meanSkew = Math.max(meanSkew, 0.001);
