@@ -529,8 +529,12 @@ export const VolatilityPage: React.FC<VolatilityPageProps> = ({ initialStockCode
                   <span>下跌</span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <span className="w-3 h-8 bg-emerald-500/50 rounded-sm"></span>
+                  <span>成交量</span>
+                </div>
+                <div className="flex items-center gap-2">
                   <span className="w-8 h-0.5 bg-purple-500"></span>
-                  <span>波动率 (%)</span>
+                  <span>{INDICATOR_LABELS[selectedIndicator]}{INDICATOR_UNITS[selectedIndicator] ? ` (${INDICATOR_UNITS[selectedIndicator]})` : ''}</span>
                 </div>
                 {showBollingerBands && (
                   <div className="flex items-center gap-2">

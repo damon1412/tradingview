@@ -49,6 +49,7 @@ export const WatchlistPanel: React.FC<WatchlistPanelProps> = ({
   const [translateY, setTranslateY] = useState(0);
   const [draggedItem, setDraggedItem] = useState<WatchlistItem | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
   const isDragging = useRef(false);
   const startY = useRef(0);
   const currentY = useRef(0);
@@ -193,13 +194,17 @@ export const WatchlistPanel: React.FC<WatchlistPanelProps> = ({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+      <div
+        className="flex items-center justify-between px-4 py-3 border-b border-slate-700 cursor-pointer select-none"
+        onClick={() => setCollapsed(!collapsed)}
+      >
         <h3 className="font-semibold text-slate-200 text-sm flex items-center gap-2">
           <i className="fas fa-star text-yellow-500"></i>
           自选股
           <span className="text-xs text-slate-500 font-normal">({items.length})</span>
+          <i className={`fas fa-chevron-${collapsed ? 'right' : 'down'} text-slate-500 text-[10px] ml-1 transition-transform`}></i>
         </h3>
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
           {showSkew && hasSkewData && (
             <div className="flex items-center gap-0.5 mr-1">
               <button
@@ -258,6 +263,8 @@ export const WatchlistPanel: React.FC<WatchlistPanelProps> = ({
         </div>
       </div>
 
+      {!collapsed && (
+        <>
       {isMobile && (
         <div
           className="w-12 h-1 bg-slate-600 rounded-full mx-auto my-2 cursor-grab active:cursor-grabbing transition-all"
@@ -486,6 +493,8 @@ export const WatchlistPanel: React.FC<WatchlistPanelProps> = ({
           <span>点击股票切换到该股票</span>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

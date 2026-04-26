@@ -36,10 +36,11 @@ export const VolatilityChart: React.FC<VolatilityChartProps> = ({
   const margin = { top: 20, right: 80, bottom: 40, left: 10 };
   const chartWidth = width - margin.left - margin.right;
   const chartHeight = height - margin.top - margin.bottom;
-  
-  const priceChartHeight = chartHeight * 0.6;
-  const volChartHeight = chartHeight * 0.4;
-  const dividerHeight = 20;
+
+  const priceChartHeight = chartHeight * 0.45;
+  const volumeChartHeight = chartHeight * 0.2;
+  const volChartHeight = chartHeight * 0.25;
+  const dividerHeight = 15;
 
   const candleWidth = Math.max(2, (chartWidth / stockData.length) * 0.7);
   const candleSpacing = chartWidth / stockData.length;
@@ -67,6 +68,11 @@ export const VolatilityChart: React.FC<VolatilityChartProps> = ({
     return { min, max };
   }, [stockData, volatilityData, showBollingerBands, gridResult]);
 
+  const maxVolume = useMemo(() => {
+    if (stockData.length === 0) return 1;
+    return Math.max(...stockData.map(d => d.volume));
+  }, [stockData]);
+
   const indicatorConfig = INDICATOR_CONFIG[indicator];
   const indicatorKey = indicatorConfig.key;
 
@@ -83,13 +89,21 @@ export const VolatilityChart: React.FC<VolatilityChartProps> = ({
 
   const indicatorToY = useCallback((value: number) => {
     const range = indicatorRange.max - indicatorRange.min;
-    if (range === 0) return margin.top + priceChartHeight + dividerHeight + volChartHeight;
-    return margin.top + priceChartHeight + dividerHeight + volChartHeight - ((value - indicatorRange.min) / range) * volChartHeight;
-  }, [indicatorRange, volChartHeight, priceChartHeight, dividerHeight, margin.top]);
+    if (range === 0) return margin.top + priceChartHeight + volumeChartHeight + dividerHeight * 2 + volChartHeight;
+    return margin.top + priceChartHeight + volumeChartHeight + dividerHeight * 2 + volChartHeight - ((value - indicatorRange.min) / range) * volChartHeight;
+  }, [indicatorRange, volChartHeight, priceChartHeight, volumeChartHeight, dividerHeight, margin.top]);
+
+  const volumeToY = useCallback((volume: number) => {
+    if (maxVolume === 0) return margin.top + priceChartHeight + dividerHeight + volumeChartHeight;
+    return margin.top + priceChartHeight + dividerHeight + volumeChartHeight - (volume / maxVolume) * volumeChartHeight;
+  }, [maxVolume, volumeChartHeight, priceChartHeight, dividerHeight, margin.top]);
 
   const indexToX = useCallback((index: number) => {
     return margin.left + index * candleSpacing + candleSpacing / 2;
   }, [margin.left, candleSpacing]);
+
+  const volumeTop = margin.top + priceChartHeight + dividerHeight;
+  const volTop = volumeTop + volumeChartHeight + dividerHeight;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -111,7 +125,14 @@ export const VolatilityChart: React.FC<VolatilityChartProps> = ({
     ctx.lineTo(margin.left, margin.top);
     ctx.stroke();
 
-    const volTop = margin.top + priceChartHeight + dividerHeight;
+    ctx.beginPath();
+    ctx.moveTo(margin.left, volumeTop);
+    ctx.lineTo(margin.left + chartWidth, volumeTop);
+    ctx.lineTo(margin.left + chartWidth, volumeTop + volumeChartHeight);
+    ctx.lineTo(margin.left, volumeTop + volumeChartHeight);
+    ctx.lineTo(margin.left, volumeTop);
+    ctx.stroke();
+
     ctx.beginPath();
     ctx.moveTo(margin.left, volTop);
     ctx.lineTo(margin.left + chartWidth, volTop);
@@ -124,6 +145,9 @@ export const VolatilityChart: React.FC<VolatilityChartProps> = ({
     ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText('价格', margin.left + 5, margin.top + 15);
+
+    ctx.fillStyle = '#10b981';
+    ctx.fillText('成交量', margin.left + 5, volumeTop + 15);
 
     ctx.fillStyle = indicatorConfig.color;
     ctx.fillText(indicatorConfig.label, margin.left + 5, volTop + 15);
@@ -149,6 +173,27 @@ export const VolatilityChart: React.FC<VolatilityChartProps> = ({
       ctx.strokeStyle = isUp ? '#10b981' : '#ef4444';
       ctx.lineWidth = 1;
       ctx.strokeRect(x - candleWidth / 2, Math.min(openY, closeY), candleWidth, bodyHeight);
+    });
+
+    // Volume bars
+    const volBarWidth = Math.max(1, candleSpacing * 0.7);
+    stockData.forEach((candle, index) => {
+      const x = indexToX(index);
+      const isUp = candle.close >= candle.open;
+      const barHeight = maxVolume > 0 ? (candle.volume / maxVolume) * volumeChartHeight : 0;
+      const y = volumeTop + volumeChartHeight - barHeight;
+
+      const baseColor = isUp ? '#10b981' : '#ef4444';
+      const gradient = ctx.createLinearGradient(x, y + barHeight, x, y);
+      gradient.addColorStop(0, baseColor + '40');
+      gradient.addColorStop(1, baseColor + '80');
+
+      ctx.fillStyle = gradient;
+      ctx.fillRect(x - volBarWidth / 2, y, volBarWidth, barHeight);
+
+      ctx.strokeStyle = baseColor;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - volBarWidth / 2, y, volBarWidth, barHeight);
     });
 
     if (showBollingerBands && volatilityData.length > 0) {
@@ -394,13 +439,17 @@ export const VolatilityChart: React.FC<VolatilityChartProps> = ({
 
     if (hoverIndex !== null && hoverIndex >= 0 && hoverIndex < stockData.length) {
       const x = indexToX(hoverIndex);
-      
+
       ctx.strokeStyle = '#cbd5e1';
       ctx.lineWidth = 1;
       ctx.setLineDash([3, 3]);
       ctx.beginPath();
       ctx.moveTo(x, margin.top);
       ctx.lineTo(x, margin.top + priceChartHeight);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, volumeTop);
+      ctx.lineTo(x, volumeTop + volumeChartHeight);
       ctx.stroke();
       ctx.beginPath();
       ctx.moveTo(x, volTop);
@@ -413,7 +462,7 @@ export const VolatilityChart: React.FC<VolatilityChartProps> = ({
       const indicatorValue = vol ? (vol[indicatorKey] as number) : 0;
 
       const tooltipWidth = 170;
-      let tooltipHeight = 60;
+      let tooltipHeight = 72;
       if (indicatorValue > 0) tooltipHeight += 18;
       if (showBollingerBands && vol && vol.bbUpper > 0) tooltipHeight += 42;
       if (vol && vol.upVolatility > 0 && vol.downVolatility > 0) tooltipHeight += 16;
@@ -449,14 +498,19 @@ export const VolatilityChart: React.FC<VolatilityChartProps> = ({
       ctx.fillStyle = '#94a3b8';
       ctx.fillText(`最高: ${stock.high.toFixed(2)}`, tooltipX + 8, tooltipY + 54);
 
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '10px sans-serif';
+      const volLabel = stock.volume >= 1000000 ? (stock.volume / 1000000).toFixed(1) + 'M' : stock.volume >= 1000 ? (stock.volume / 1000).toFixed(1) + 'K' : stock.volume.toFixed(0);
+      ctx.fillText(`成交量: ${volLabel}`, tooltipX + 8, tooltipY + 68);
+
       if (indicatorValue > 0) {
         ctx.fillStyle = indicatorConfig.color;
         ctx.font = 'bold 11px sans-serif';
-        ctx.fillText(`${indicatorConfig.label.replace(' (%)', '')}: ${indicatorValue.toFixed(2)}${indicatorConfig.unit}`, tooltipX + 8, tooltipY + 72);
+        ctx.fillText(`${indicatorConfig.label.replace(' (%)', '')}: ${indicatorValue.toFixed(2)}${indicatorConfig.unit}`, tooltipX + 8, tooltipY + 86);
       }
 
       if (showBollingerBands && vol && vol.bbUpper > 0) {
-        const bbY = indicatorValue > 0 ? tooltipY + 90 : tooltipY + 72;
+        const bbY = indicatorValue > 0 ? tooltipY + 104 : tooltipY + 86;
         ctx.fillStyle = '#f59e0b';
         ctx.font = '10px sans-serif';
         ctx.fillText(`上轨: ${vol.bbUpper.toFixed(2)}`, tooltipX + 8, bbY);
@@ -465,7 +519,7 @@ export const VolatilityChart: React.FC<VolatilityChartProps> = ({
       }
 
       if (vol && vol.upVolatility > 0 && vol.downVolatility > 0) {
-        let skewY = indicatorValue > 0 ? tooltipY + 90 : tooltipY + 72;
+        let skewY = indicatorValue > 0 ? tooltipY + 104 : tooltipY + 86;
         if (showBollingerBands && vol.bbUpper > 0) skewY += 42;
         
         ctx.fillStyle = '#94a3b8';
@@ -498,7 +552,7 @@ export const VolatilityChart: React.FC<VolatilityChartProps> = ({
       ctx.textAlign = 'center';
       ctx.fillText('S', x, y + 3);
     }
-  }, [stockData, volatilityData, width, height, priceToY, indicatorToY, indexToX, priceRange, indicatorRange, candleWidth, candleSpacing, chartWidth, chartHeight, margin, hoverIndex, priceChartHeight, volChartHeight, dividerHeight, indicator, indicatorConfig, showBollingerBands, gridResult, signal]);
+  }, [stockData, volatilityData, width, height, priceToY, indicatorToY, volumeToY, indexToX, priceRange, indicatorRange, candleWidth, candleSpacing, chartWidth, chartHeight, margin, hoverIndex, priceChartHeight, volumeChartHeight, volChartHeight, dividerHeight, indicator, indicatorConfig, showBollingerBands, gridResult, signal, maxVolume, volumeTop]);
 
   const handleMouseMove = (e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect();
