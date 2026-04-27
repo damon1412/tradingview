@@ -165,9 +165,12 @@ export async function get1MinuteDataForVolumeProfile(
   endDate: string
 ): Promise<{ data: StockData[]; error?: ApiError }> {
   try {
-    const limit = isIndexCode(code) ? 20000 : 800;
-    const url = `/api/kline-history?code=${code}&type=minute1&start_date=${startDate}&end_date=${endDate}&limit=${limit}`;
-    
+    const isIndex = isIndexCode(code);
+    const limit = isIndex ? 20000 : 800;
+    const url = isIndex
+      ? `/api/index-history?code=${code}&type=minute1&start_date=${startDate}&end_date=${endDate}&limit=${limit}`
+      : `/api/kline-history?code=${code}&type=minute1&start_date=${startDate}&end_date=${endDate}&limit=${limit}`;
+
     const response = await fetch(url);
     if (!response.ok) throw response;
     const result = await response.json();
